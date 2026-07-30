@@ -6,6 +6,10 @@ authors = [
     {name = "Anton",email = "yakovenkoanton2007@gmail.com"}
 ]
 
+[tool.poetry]
+package-mode = false
+
+
 [tool.poetry.dependencies]
 python = "^3.10"
 fastapi = "^0.115.6"
