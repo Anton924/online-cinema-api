@@ -7,8 +7,7 @@ app = FastAPI(
 
 
 @app.get("/health/", status_code=status.HTTP_200_OK)
-def health(
-):
+def health() -> dict:
     return {
         "detail": "Connection configured!"
     }
