@@ -8,3 +8,4 @@ exclude = .venv
 extend-exclude =
     src/tests/*,
     src/database/migrations/*
+    */__init__.py

@@ -18,6 +18,7 @@ AsyncSQLiteSessionLocal = async_sessionmaker(
     expire_on_commit=False
 )
 
+
 async def get_sqlite_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSQLiteSessionLocal() as session:
         yield session
@@ -33,4 +34,3 @@ async def reset_sqlite_database() -> None:
     async with sqlite_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-
