@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,10 @@ class Settings(BaseAppSettings):
     POSTGRES_HOST: str = "test_host"
     POSTGRES_DB_PORT: int = 5432
     POSTGRES_DB: str = "test_db"
+
+    SECRET_KEY_ACCESS: str = "SECRET_KEY_ACCESS"
+    SECRET_KEY_REFRESH: str = "SECRET_KEY_REFRESH"
+    JWT_SIGNING_ALGORITHM: str = "HS256"
 
 
 class TestingSettings(BaseAppSettings):
