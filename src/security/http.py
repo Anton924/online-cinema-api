@@ -1,7 +1,5 @@
 from fastapi import Request, HTTPException, status
 
-from fastapi.security import OAuth2PasswordBearer
-
 
 def get_token(request: Request):
     authorization: str = request.headers.get("Authorization")
@@ -14,7 +12,7 @@ def get_token(request: Request):
 
     schema, _, token = authorization.partition(" ")
 
-    if not schema.lower() != "bearer" or token:
+    if schema.lower() != "bearer" or not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Authorization header format. Expected 'Bearer <token>'"
