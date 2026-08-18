@@ -3,7 +3,9 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, field_validator
 
 from database import accounts_validators
-from src.schemas.profiles import UserProfileResponseSchema
+from schemas.profiles import UserProfileResponseSchema
+
+from database.models.accounts import UserGroupEnum
 
 
 class BaseEmailPasswordSchema(BaseModel):
@@ -105,3 +107,15 @@ class UserResponseSchema(BaseModel):
     created_at: datetime
     updated_at: datetime
     profile: UserProfileResponseSchema | None
+
+
+class MessageResponseSchema(BaseModel):
+    message: str
+
+
+class ChangeUserGroupRequestSchema(BaseModel):
+    group: UserGroupEnum
+
+
+class UserActiveDeactivateStatusRequestSchema(BaseModel):
+    is_active: bool
