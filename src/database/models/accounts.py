@@ -57,7 +57,7 @@ class UserModel(Base):
     _hashed_password: Mapped[str] = mapped_column("hashed_password", String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", ondelete="CASCADE"), nullable=False)
 
     group: Mapped["UserGroup"] = relationship("UserGroup", back_populates="users")
@@ -87,6 +87,7 @@ class UserModel(Base):
 
     @classmethod
     def create(cls, email: str, group_id: int, raw_password: str):
+
         user = cls(email=email, group_id=group_id)
         user.password = raw_password
         return user
@@ -138,12 +139,12 @@ class TokenBaseModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token: Mapped[str] = mapped_column(
-        String(64),
+        String(512),
         unique=True,
         nullable=False,
         default=generate_secure_token
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime, default=lambda:datetime.now(timezone.utc) + timedelta(days=1))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda:datetime.now(timezone.utc) + timedelta(days=1))
 
 
 class ActivationTokenModel(TokenBaseModel):
