@@ -54,6 +54,23 @@ services:
     networks:
       - cinema_network
 
+  mailhog:
+    restart: always
+    build:
+      context: .
+      dockerfile: ./docker/mailhog/Dockerfile
+    container_name: mailhog_cinema
+    command: ["/bin/bash", "-c", "/commands/setup_mailhog_auth.sh && /go/bin/MailHog"]
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    env_file:
+      - .env
+    environment:
+      MH_AUTH_FILE: /mailhog.auth
+    networks:
+      - cinema_network
+
   migrator:
     build: .
     container_name: alembic_migrator_cinema
@@ -69,11 +86,55 @@ services:
       - PYTHONPATH=/usr/src/fastapi
     networks:
       - cinema_network
+  redis:
+    image: redis:latest
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/usr/redis/data
+    networks:
+      - cinema_network
+  celery_worker:
+    build: .
+    container_name: cinema_celery_worker
+    command: ["celery", "-A", "tasks.celery_app", "worker", "--loglevel=info"]
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./src:/usr/src/fastapi
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
+    networks:
+      - cinema_network
+
+  celery_beat:
+    build: .
+    container_name: cinema_celery_beat
+    command: ["celery", "-A", "tasks.celery_app", "beat", "--loglevel=info"]
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./src:/usr/src/fastapi
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
+    networks:
+      - cinema_network
 
 volumes:
   postgres_cinema_data:
     driver: local
   pgadmin_cinema_data:
+    driver: local
+  redis_data:
     driver: local
 
 networks:
