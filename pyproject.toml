@@ -26,6 +26,8 @@ aiosqlite = "^0.22.1"
 pyjwt = "^2.13.0"
 pwdlib = {extras = ["argon2"], version = "^0.3.0"}
 pillow = "^12.3.0"
+celery = {extras = ["redis"], version = "^5.6.3"}
+aiosmtplib = "^5.1.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
