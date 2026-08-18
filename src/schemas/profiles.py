@@ -1,5 +1,5 @@
-from datetime import date, datetime
-from typing import Any, Self
+from datetime import date
+from typing import Any
 
 from fastapi import UploadFile, Form, File
 from pydantic import BaseModel, EmailStr, field_validator
@@ -36,23 +36,27 @@ class UserProfileRequestSchema(BaseModel):
 
     @field_validator("first_name", "last_name")
     @classmethod
-    def validate_name(cls, value: Any) -> Self:
+    def validate_name(cls, value: str) -> str | None:
         validate_name(value)
+        return value
 
     @field_validator("avatar")
     @classmethod
-    def validate_avatar(cls, value: Any) -> Self:
+    def validate_avatar(cls, value: UploadFile) -> UploadFile | None:
         validate_image(value)
+        return value
 
     @field_validator("gender")
     @classmethod
-    def validate_gender(cls, value: Any) -> Self:
+    def validate_gender(cls, value: str) -> str | None:
         validate_gender(value)
+        return value
 
     @field_validator("date_of_birth")
     @classmethod
-    def validate_date_of_birth(cls, value: Any) -> Self:
+    def validate_date_of_birth(cls, value: date) -> date | None:
         validate_birth_date(value)
+        return value
 
 
 class UserProfileResponseSchema(BaseModel):
