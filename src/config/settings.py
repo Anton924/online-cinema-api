@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Any
 
@@ -27,8 +26,9 @@ class BaseAppSettings(BaseSettings):
     MAILHOG_API_PORT: int = 8025
 
 
-
 class Settings(BaseAppSettings):
+    ADMIN_EMAIL: str = "admin@admin.com"
+    ADMIN_PASSWORD: str = "Admin123!"
     POSTGRES_USER: str = "test_user"
     POSTGRES_PASSWORD: str = "test_password"
     POSTGRES_HOST: str = "test_host"
