@@ -1,6 +1,6 @@
 [flake8]
 inline-quotes = "
-ignore = E203, E266, W503, ANN002, ANN003, ANN101, ANN102, ANN401, N807, N818, VNE001, W504
+ignore = E203, E266, W503, ANN002, ANN003, ANN101, ANN102, ANN401, N807, N818, VNE001, W504, B008
 max-line-length = 119
 max-complexity = 18
 select = B,C,E,F,W,T4,B9,ANN,Q0,N8,VNE,F401
@@ -9,3 +9,6 @@ extend-exclude =
     src/tests/*,
     src/database/migrations/*
     */__init__.py
+per-file-ignores =
+    src/schemas/*:VNE003,
+    src/database/models/*:VNE003
