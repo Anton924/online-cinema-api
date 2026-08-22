@@ -16,7 +16,11 @@ from schemas.movies import (
     StarResponseSchema,
     DirectorRequestSchema,
     DirectorResponseSchema,
-    MovieListItemResponseSchema
+    MovieCreateRequestSchema,
+    MovieListItemResponseSchema,
+    MovieDetailResponseSchema,
+    MovieUpdateRequestSchema,
+    PaginatedMovieResponseSchema
 )
 from database.models.movies import (
     CertificationModel,
@@ -33,6 +37,7 @@ from database.models.accounts import (
 )
 
 from schemas.accounts import MessageResponseSchema
+from sqlalchemy.orm import joinedload
 
 
 def update_instance(instance: Any, data: BaseModel) -> None:
@@ -835,3 +840,271 @@ async def resolve_director(
         db=db,
         value=value
     )
+
+
+async def create_movie_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    movie_data: MovieCreateRequestSchema
+) -> MovieDetailResponseSchema:
+    stmt = select(CertificationModel).where(CertificationModel.id == movie_data.certification_id)
+    result = await db.execute(stmt)
+    certification = result.scalars().first()
+
+    if not certification:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Certification with id {movie_data.certification_id} not found."
+        )
+
+    stmt = select(MovieModel).where(
+        MovieModel.name == movie_data.name,
+        MovieModel.year == movie_data.year,
+        MovieModel.time == movie_data.time
+    )
+
+    result = await db.execute(stmt)
+    is_unique_constraint_violated = result.scalars().first()
+
+    if is_unique_constraint_violated:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A movie with this name, year, and duration already exists."
+        )
+
+    genres = [
+        await resolve_genre(
+            db=db,
+            value=genre_id_or_name
+        )
+        for genre_id_or_name in movie_data.genre_ids_or_names
+    ]
+
+    stars = [
+        await resolve_star(
+            db=db,
+            value=star_id_or_name
+        )
+        for star_id_or_name in movie_data.star_ids_or_names
+    ]
+
+    directors = [
+        await resolve_director(
+            db=db,
+            value=director_id_or_name
+        )
+        for director_id_or_name in movie_data.director_ids_or_names
+    ]
+
+    movie_data_cleaned = movie_data.model_dump(
+        exclude=("genre_ids_or_names", "director_ids_or_names", "star_ids_or_names")
+    )
+
+    try:
+        movie = MovieModel(
+            **movie_data_cleaned
+        )
+
+        movie.genres = genres
+        movie.stars = stars
+        movie.directors = directors
+
+        db.add(movie)
+        await db.commit()
+        await db.refresh(movie, ["genres", "stars", "directors"])
+
+        return MovieDetailResponseSchema.model_validate(movie)
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while creating the movie."
+        ) from e
+
+
+async def get_movies(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    page: int = 1,
+    per_page: int = 20
+) -> PaginatedMovieResponseSchema:
+    stmt = select(MovieModel).options(
+        joinedload(MovieModel.certification)
+    ).offset(per_page * (page - 1)).limit(per_page)
+
+    result = await db.execute(stmt)
+    movies = result.scalars().all()
+
+    stmt = select(func.count(MovieModel.id).label("total"))
+    total = await db.scalar(stmt)
+
+    if total % per_page == 0:
+        total_pages = total // per_page
+    else:
+        total_pages = total // per_page + 1
+
+    movies_list = [
+        MovieListItemResponseSchema.model_validate(movie)
+        for movie in movies
+    ]
+
+    return PaginatedMovieResponseSchema(
+        items=movies_list,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages
+    )
+
+
+async def get_movie_by_id(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    movie_id: int,
+) -> MovieDetailResponseSchema:
+    stmt = (
+        select(MovieModel)
+        .where(MovieModel.id == movie_id)
+        .options(
+            joinedload(MovieModel.certification),
+            joinedload(MovieModel.genres),
+            joinedload(MovieModel.stars),
+            joinedload(MovieModel.directors)
+        )
+    )
+    result = await db.execute(stmt)
+
+    movie = result.scalars().unique().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id} not found."
+        )
+
+    return MovieDetailResponseSchema.model_validate(movie)
+
+
+async def update_movie_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    movie_id: int,
+    update_data: MovieUpdateRequestSchema
+) -> MovieDetailResponseSchema:
+    stmt = (
+        select(MovieModel)
+        .where(MovieModel.id == movie_id)
+        .options(
+            joinedload(MovieModel.certification),
+            joinedload(MovieModel.genres),
+            joinedload(MovieModel.stars),
+            joinedload(MovieModel.directors)
+        )
+    )
+    result = await db.execute(stmt)
+    movie = result.scalars().unique().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id} not found."
+        )
+
+    movie_update_data = update_data.model_dump(exclude_unset=True)
+
+    certification_id = movie_update_data.pop("certification_id", None)
+    genre_ids_or_names = movie_update_data.pop("genre_ids_or_names", None)
+    director_ids_or_names = movie_update_data.pop("director_ids_or_names", None)
+    star_ids_or_names = movie_update_data.pop("star_ids_or_names", None)
+
+    try:
+        for key, value in movie_update_data.items():
+            setattr(movie, key, value)
+
+        if any(key in movie_update_data for key in ("name", "year", "time")):
+            stmt = select(MovieModel).where(
+                MovieModel.name == movie.name,
+                MovieModel.year == movie.year,
+                MovieModel.time == movie.time,
+                MovieModel.id != movie_id
+            )
+            result = await db.execute(stmt)
+            is_unique_constraint_violated = result.scalars().first()
+
+            if is_unique_constraint_violated:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="A movie with this name, year, and duration already exists."
+                )
+
+        if certification_id:
+            certification = await db.get(CertificationModel, certification_id)
+            if not certification:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Certification with id {certification_id} not found."
+                )
+
+        if genre_ids_or_names:
+            genres = [
+                await resolve_genre(
+                    db=db,
+                    value=genre_id_or_name
+                ) for genre_id_or_name in genre_ids_or_names
+            ]
+            movie.genres = genres
+
+        if star_ids_or_names:
+            stars = [
+                await resolve_star(
+                    db=db,
+                    value=star_id_or_name
+                ) for star_id_or_name in star_ids_or_names
+            ]
+            movie.stars = stars
+
+        if director_ids_or_names:
+            directors = [
+                await resolve_director(
+                    db=db,
+                    value=director_id_or_name
+                ) for director_id_or_name in director_ids_or_names
+            ]
+            movie.directors = directors
+
+        await db.commit()
+
+        return MovieDetailResponseSchema.model_validate(movie)
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while updating the movie."
+        ) from e
+
+
+async def delete_movie_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    movie_id: int,
+) -> MessageResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id} not found."
+        )
+
+    try:
+        # TODO: Add exception: f"Cannot delete movie '{name}' - it has already been purchased by one or more users."
+        await db.delete(movie)
+        await db.commit()
+
+        return MessageResponseSchema(
+            message=f"Movie {movie.name!r} was successfully deleted."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while deleting the movie."
+        ) from e
