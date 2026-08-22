@@ -1,8 +1,7 @@
 from datetime import date
-from typing import Any
 
 from fastapi import UploadFile, Form, File
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
 
 from validation.profile import validate_image, validate_gender, validate_birth_date, validate_name
 
@@ -18,13 +17,13 @@ class UserProfileRequestSchema(BaseModel):
     @classmethod
     def from_form(
         cls,
-        first_name=Form(),
-        last_name=Form(),
-        avatar=File(),
-        gender=Form(),
-        date_of_birth=Form(),
-        info=Form(),
-    ):
+        first_name: str = Form(),
+        last_name: str = Form(),
+        avatar: UploadFile = File(),
+        gender: str = Form(),
+        date_of_birth: date = Form(),
+        info: str = Form(),
+    ) -> "UserProfileRequestSchema":
         return cls(
             first_name=first_name,
             last_name=last_name,
@@ -72,7 +71,3 @@ class UserProfileResponseSchema(BaseModel):
     model_config = {
         "from_attributes": True
     }
-
-
-
-

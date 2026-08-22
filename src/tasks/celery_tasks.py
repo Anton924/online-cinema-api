@@ -15,12 +15,11 @@ from database.session_postgresql import POSTGRESQL_DATABASE_URL
 
 
 @app.task
-def clean_data_from_expired_tokens():
+def clean_data_from_expired_tokens() -> None:
     asyncio.run(_clean_expired_tokens())
 
 
-
-async def _clean_expired_tokens():
+async def _clean_expired_tokens() -> None:
     engine = create_async_engine(POSTGRESQL_DATABASE_URL, echo=False)
     session_local = async_sessionmaker(
         bind=engine,
@@ -37,5 +36,3 @@ async def _clean_expired_tokens():
         for token_model in token_tables:
             await db.execute(delete(token_model).where(token_model.expires_at < now))
             await db.commit()
-
-

@@ -1,7 +1,7 @@
 from fastapi import Request, HTTPException, status
 
 
-def get_token(request: Request):
+def get_token(request: Request) -> str:
     authorization: str = request.headers.get("Authorization")
 
     if not authorization:
@@ -19,5 +19,3 @@ def get_token(request: Request):
         )
 
     return token
-
-

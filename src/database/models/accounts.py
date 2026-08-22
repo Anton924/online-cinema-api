@@ -45,7 +45,7 @@ class UserGroup(Base):
 
     users: Mapped[List["UserModel"]] = relationship("UserModel", back_populates="group")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<UserGroupModel(id={self.id}, name={self.name})>"
 
 
@@ -57,7 +57,9 @@ class UserModel(Base):
     _hashed_password: Mapped[str] = mapped_column("hashed_password", String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
     group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", ondelete="CASCADE"), nullable=False)
 
     group: Mapped["UserGroup"] = relationship("UserGroup", back_populates="users")
@@ -82,12 +84,11 @@ class UserModel(Base):
         cascade="all, delete-orphan"
     )
 
-    def has_group(self, group_name: UserGroupEnum):
+    def has_group(self, group_name: UserGroupEnum) -> bool:
         return self.group.name == group_name
 
     @classmethod
-    def create(cls, email: str, group_id: int, raw_password: str):
-
+    def create(cls, email: str, group_id: int, raw_password: str) -> "UserModel":
         user = cls(email=email, group_id=group_id)
         user.password = raw_password
         return user
@@ -106,7 +107,7 @@ class UserModel(Base):
         return verify_password(plain_password, hashed_password)
 
     @validates("email")
-    def validate_email(self, key, value):
+    def validate_email(self, key: str, value: str) -> str:
         return validate_email_format(value)
 
 
@@ -126,7 +127,7 @@ class UserProfileModel(Base):
 
     __table_args__ = (UniqueConstraint(user_id),)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<UserProfileModel(id={self.id}, first_name={self.first_name}, last_name={self.last_name}, "
             f"gender={self.gender}, date_of_birth={self.date_of_birth})>"
@@ -144,7 +145,9 @@ class TokenBaseModel(Base):
         nullable=False,
         default=generate_secure_token
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda:datetime.now(timezone.utc) + timedelta(days=1))
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
+    )
 
 
 class ActivationTokenModel(TokenBaseModel):
@@ -154,7 +157,7 @@ class ActivationTokenModel(TokenBaseModel):
 
     __table_args__ = (UniqueConstraint("user_id"),)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<ActivationTokenModel(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
 
 
@@ -165,7 +168,7 @@ class PasswordResetTokenModel(TokenBaseModel):
 
     __table_args__ = (UniqueConstraint("user_id"),)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<PasswordResetTokenModel(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
 
 
@@ -175,10 +178,9 @@ class RefreshTokenModel(TokenBaseModel):
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="refresh_token")
 
     @classmethod
-    def create(cls, user_id: int, token: str, days_valid: int):
+    def create(cls, user_id: int, token: str, days_valid: int) -> "RefreshTokenModel":
         expires_at = datetime.now(timezone.utc) + timedelta(days=days_valid)
         return cls(user_id=user_id, token=token, expires_at=expires_at)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<RefreshTokenModel(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
-

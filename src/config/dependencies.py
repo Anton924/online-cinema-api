@@ -7,7 +7,6 @@ from typing import Annotated
 from security.token_manager import JWTAuthManager
 from notifications.emails import EmailSender
 from notifications.interfaces import EmailSenderInterface
-from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 
 
@@ -17,12 +16,14 @@ def get_settings() -> BaseAppSettings:
         return TestingSettings()
     return Settings()
 
+
 def get_jwt_auth_manager(settings: Annotated[BaseAppSettings, Depends(get_settings)]) -> JWTAuthManagerInterface:
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
         algorithm=settings.JWT_SIGNING_ALGORITHM
     )
+
 
 def get_email_sender(
         settings: Annotated[BaseAppSettings, Depends(get_settings)]

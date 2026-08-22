@@ -1,7 +1,6 @@
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from tempfile import template
 
 import aiosmtplib
 from jinja2 import Environment, FileSystemLoader
@@ -23,7 +22,7 @@ class EmailSender(EmailSenderInterface):
         activation_complete_email_template_name: str,
         password_email_template_name: str,
         password_complete_email_template_name: str
-    ):
+    ) -> None:
         self._hostname = hostname
         self._port = port
         self._email = email
@@ -54,9 +53,9 @@ class EmailSender(EmailSenderInterface):
             await smtp.quit()
         except aiosmtplib.SMTPException as error:
             logging.error(f"Failed to send email to {recipient}: {error}")
-            raise BaseMailError(f"Failed to send email to {recipient}: {error}")
+            raise BaseMailError(f"Failed to send email to {recipient}: {error}") from error
 
-    async def send_activation_email(self, email: str, activation_link) -> None:
+    async def send_activation_email(self, email: str, activation_link: str) -> None:
         template = self._env.get_template(self._activation_email_template_name)
         html_content = template.render(email=email, activation_link=activation_link)
         subject = "Account Activation"
