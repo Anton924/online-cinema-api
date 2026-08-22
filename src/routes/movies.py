@@ -8,6 +8,8 @@ from schemas.movies import (
     GenreRequestSchema,
     GenreResponseSchema,
     GenreWithMovieCountResponseSchema,
+    StarRequestSchema,
+    StarResponseSchema,
     MovieListItemResponseSchema
 )
 from services.movies import (
@@ -21,7 +23,12 @@ from services.movies import (
     get_genre_by_id,
     get_movies_by_genre,
     update_genre_service,
-    delete_genre_service
+    delete_genre_service,
+    create_star_service,
+    get_stars,
+    get_star_by_id,
+    update_star_service,
+    delete_star_service
 )
 from database.models.accounts import (
     UserModel,
@@ -208,4 +215,85 @@ async def delete_genre(
         db=db,
         current_user=current_user,
         genre_id=genre_id,
+    )
+
+
+@router.post(
+    "/stars",
+    status_code=status.HTTP_201_CREATED,
+    response_model=StarResponseSchema
+)
+async def create_star(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    star_data: StarRequestSchema,
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
+) -> StarResponseSchema:
+    return await create_star_service(
+        db=db,
+        star_data=star_data,
+        current_user=current_user
+    )
+
+
+@router.get(
+    "/stars",
+    status_code=status.HTTP_200_OK,
+    response_model=list[StarResponseSchema]
+)
+async def list_stars(
+    db: Annotated[AsyncSession, Depends(get_db)]
+) -> list[StarResponseSchema]:
+    return await get_stars(
+        db=db
+    )
+
+
+@router.get(
+    "/stars/{star_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=StarResponseSchema
+)
+async def get_star(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    star_id: int
+) -> StarResponseSchema:
+    return await get_star_by_id(
+        db=db,
+        star_id=star_id
+    )
+
+
+@router.patch(
+    "/stars/{star_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=StarResponseSchema
+)
+async def update_star(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    star_id: int,
+    data: StarRequestSchema
+) -> StarResponseSchema:
+    return await update_star_service(
+        db=db,
+        current_user=current_user,
+        star_id=star_id,
+        data=data
+    )
+
+
+@router.delete(
+    "/stars/{star_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema
+)
+async def delete_star(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    star_id: int,
+) -> MessageResponseSchema:
+    return await delete_star_service(
+        db=db,
+        current_user=current_user,
+        star_id=star_id,
     )
