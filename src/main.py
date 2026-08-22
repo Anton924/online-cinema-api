@@ -1,5 +1,5 @@
 from fastapi import FastAPI, status
-from routes import accounts_router
+from routes import accounts_router, movies_router
 
 app = FastAPI(
     title="Online Cinema API",
@@ -8,7 +8,9 @@ app = FastAPI(
 
 prefix = "/api/v1"
 
-app.include_router(router=accounts_router, prefix=prefix)
+app.include_router(router=accounts_router, prefix=f"{prefix}/accounts", tags=["accounts"])
+app.include_router(router=movies_router, prefix=f"{prefix}/movies", tags=["cinema"])
+
 
 @app.get("/health/", status_code=status.HTTP_200_OK)
 def health() -> dict:
