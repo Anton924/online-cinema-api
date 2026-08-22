@@ -4,14 +4,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas.movies import (
     CertificationRequestSchema,
-    CertificationResponseSchema
+    CertificationResponseSchema,
+    GenreRequestSchema,
+    GenreResponseSchema,
+    GenreWithMovieCountResponseSchema,
+    MovieListItemResponseSchema
 )
 from services.movies import (
     create_certification_service,
     get_certifications,
     get_certification_by_id,
     update_certification_service,
-    delete_certification_service
+    delete_certification_service,
+    create_genre_service,
+    get_genres_with_movie_count,
+    get_genre_by_id,
+    get_movies_by_genre,
+    update_genre_service,
+    delete_genre_service
 )
 from database.models.accounts import (
     UserModel,
@@ -102,4 +112,100 @@ async def delete_certification(
         db=db,
         current_user=current_user,
         certification_id=certification_id,
+    )
+
+
+@router.post(
+    "/genres",
+    status_code=status.HTTP_201_CREATED,
+    response_model=GenreResponseSchema
+)
+async def create_genre(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    genre_data: GenreRequestSchema,
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
+) -> GenreResponseSchema:
+    return await create_genre_service(
+        db=db,
+        genre_data=genre_data,
+        current_user=current_user
+    )
+
+
+@router.get(
+    "/genres",
+    status_code=status.HTTP_200_OK,
+    response_model=list[GenreResponseSchema]
+)
+async def list_genres(
+    db: Annotated[AsyncSession, Depends(get_db)]
+) -> list[GenreResponseSchema]:
+    return await get_genres_with_movie_count(
+        db=db
+    )
+
+
+@router.get(
+    "/genres/{genre_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=GenreWithMovieCountResponseSchema
+)
+async def get_genre(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    genre_id: int
+) -> GenreWithMovieCountResponseSchema:
+    return await get_genre_by_id(
+        db=db,
+        genre_id=genre_id
+    )
+
+
+@router.get(
+    "/genres/{genre_id}/movies",
+    status_code=status.HTTP_200_OK,
+    response_model=list[MovieListItemResponseSchema] | MessageResponseSchema
+)
+async def get_genre_movies(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    genre_id: int
+) -> list[MovieListItemResponseSchema] | MessageResponseSchema:
+    return await get_movies_by_genre(
+        db=db,
+        genre_id=genre_id
+    )
+
+
+@router.patch(
+    "/genres/{genre_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=GenreResponseSchema
+)
+async def update_genre(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    genre_id: int,
+    data: GenreRequestSchema
+) -> GenreResponseSchema:
+    return await update_genre_service(
+        db=db,
+        current_user=current_user,
+        genre_id=genre_id,
+        data=data
+    )
+
+
+@router.delete(
+    "/genres/{genre_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema
+)
+async def delete_genre(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    genre_id: int,
+) -> MessageResponseSchema:
+    return await delete_genre_service(
+        db=db,
+        current_user=current_user,
+        genre_id=genre_id,
     )
