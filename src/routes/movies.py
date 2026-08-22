@@ -12,7 +12,11 @@ from schemas.movies import (
     StarResponseSchema,
     DirectorRequestSchema,
     DirectorResponseSchema,
-    MovieListItemResponseSchema
+    MovieCreateRequestSchema,
+    MovieListItemResponseSchema,
+    MovieDetailResponseSchema,
+    MovieUpdateRequestSchema,
+    PaginatedMovieResponseSchema
 )
 from services.movies import (
     create_certification_service,
@@ -35,7 +39,12 @@ from services.movies import (
     get_directors,
     get_director_by_id,
     update_director_service,
-    delete_director_service
+    delete_director_service,
+    create_movie_service,
+    get_movies,
+    get_movie_by_id,
+    update_movie_service,
+    delete_movie_service
 )
 from database.models.accounts import (
     UserModel,
@@ -384,4 +393,89 @@ async def delete_director(
         db=db,
         current_user=current_user,
         director_id=director_id,
+    )
+
+
+@router.post(
+    "/movies",
+    status_code=status.HTTP_201_CREATED,
+    response_model=MovieDetailResponseSchema,
+)
+async def create_movie(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    movie_data: MovieCreateRequestSchema
+) -> MovieDetailResponseSchema:
+    return await create_movie_service(
+        db=db,
+        current_user=current_user,
+        movie_data=movie_data
+    )
+
+
+@router.get(
+    "/movies",
+    status_code=status.HTTP_200_OK,
+    response_model=PaginatedMovieResponseSchema,
+)
+async def list_movies(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    page: int = 1,
+    per_page: int = 20
+) -> PaginatedMovieResponseSchema:
+    return await get_movies(
+        db=db,
+        page=page,
+        per_page=per_page
+    )
+
+
+@router.get(
+    "/movies/{movie_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MovieDetailResponseSchema,
+)
+async def get_movie(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    movie_id: int,
+) -> MovieDetailResponseSchema:
+    return await get_movie_by_id(
+        db=db,
+        movie_id=movie_id,
+    )
+
+
+@router.patch(
+    "/movies/{movie_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MovieDetailResponseSchema,
+)
+async def update_movie(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    movie_id: int,
+    update_data: MovieUpdateRequestSchema
+) -> MovieDetailResponseSchema:
+    return await update_movie_service(
+        db=db,
+        current_user=current_user,
+        movie_id=movie_id,
+        update_data=update_data
+    )
+
+
+@router.delete(
+    "/movies/{movie_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+)
+async def delete_movie(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    movie_id: int,
+) -> MessageResponseSchema:
+    return await delete_movie_service(
+        db=db,
+        current_user=current_user,
+        movie_id=movie_id,
     )
