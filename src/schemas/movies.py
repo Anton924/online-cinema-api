@@ -36,6 +36,19 @@ class GenreWithMovieCountResponseSchema(BaseModel):
     movie_count: int
 
 
+class StarRequestSchema(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class StarResponseSchema(BaseModel):
+    id: int
+    name: str
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
 class MovieListItemResponseSchema(BaseModel):
     id: int
     uuid: UUID
