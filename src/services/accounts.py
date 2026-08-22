@@ -26,15 +26,13 @@ from database.models.accounts import (
     UserModel,
     ActivationTokenModel,
     RefreshTokenModel,
-    PasswordResetTokenModel
+    PasswordResetTokenModel,
+    UserGroup,
+    UserGroupEnum
 )
 from schemas.accounts import (
     UserRegistrationResponseSchema,
     UserActivationRequestSchema
-)
-from database.models.accounts import (
-    UserGroup,
-    UserGroupEnum
 )
 from config.dependencies import (
     get_email_sender,
@@ -54,7 +52,7 @@ async def register_user(
         db: Annotated[AsyncSession, Depends(get_db)],
         user_data: UserRegistrationRequestSchema,
         email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)]
-):
+) -> UserRegistrationResponseSchema:
     result = await db.execute(select(UserModel).where(UserModel.email == user_data.email))
     user = result.scalars().first()
     if user:
@@ -91,13 +89,15 @@ async def register_user(
             detail="An error occurred during user creation."
         ) from e
     else:
-        activation_link = f"http://127.0.0.1:8000/api/v1/accounts/activate_activation_link/?email={new_user.email}&token={activation_token.token}"
+        activation_link = (
+            f"http://127.0.0.1:8000/api/v1/accounts/activate_activation_link/"
+            f"?email={new_user.email}&token={activation_token.token}"
+        )
 
         await email_sender.send_activation_email(
             new_user.email,
             activation_link
         )
-
 
     return UserRegistrationResponseSchema(
         id=new_user.id,
@@ -111,7 +111,7 @@ async def activate_user(
         db: Annotated[AsyncSession, Depends(get_db)],
         activation_data: UserActivationRequestSchema,
         email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
-):
+) -> MessageResponseSchema:
     result = await db.execute(select(UserModel).where(UserModel.email == activation_data.email))
     user = result.scalars().first()
     stmt = select(ActivationTokenModel).options(
@@ -159,7 +159,7 @@ async def activate_through_activation_link(
         email: str,
         token: str,
         email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)]
-):
+) -> MessageResponseSchema:
     result = await db.execute(select(UserModel).where(UserModel.email == email))
     user = result.scalars().first()
 
@@ -212,7 +212,7 @@ async def resend_activation_token(
     db: Annotated[AsyncSession, Depends(get_db)],
     resend_activation_data: ResendActivationRequestSchema,
     email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
-):
+) -> MessageResponseSchema:
     stmt = select(UserModel).where(UserModel.email == resend_activation_data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
@@ -244,7 +244,10 @@ async def resend_activation_token(
     db.add(activation_token)
     await db.commit()
 
-    activation_link = f"http://127.0.0.1:8000/api/v1/accounts/activate_activation_link/?email={user.email}&token={activation_token.token}"
+    activation_link = (
+        f"http://127.0.0.1:8000/api/v1/accounts/activate_activation_link/"
+        f"?email={user.email}&token={activation_token.token}"
+    )
 
     await email_sender.send_activation_email(
         email=user.email,
@@ -289,12 +292,12 @@ async def login_user(
         db.add(refresh_token)
         await db.flush()
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing the request.",
-        )
+        ) from e
     jwt_access_token = jwt_auth_manager.create_access_token({"user_id": user.id})
 
     return TokenPairResponseSchema(
@@ -306,7 +309,7 @@ async def login_user(
 async def revoke_refresh_token(
     db: Annotated[AsyncSession, Depends(get_db)],
     logout_data: LogoutRequestSchema,
-):
+) -> MessageResponseSchema:
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == logout_data.refresh_token)
     result = await db.execute(stmt)
     refresh_token = result.scalars().first()
@@ -328,7 +331,7 @@ async def refresh_access_token(
     db: Annotated[AsyncSession, Depends(get_db)],
     jwt_auth_manager: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
     request_refresh_token_data: TokenRefreshRequestSchema,
-):
+) -> TokenRefreshResponseSchema:
     try:
         data_from_token = jwt_auth_manager.decode_refresh_token(request_refresh_token_data.refresh_token)
         user_id = data_from_token.get("user_id")
@@ -336,7 +339,7 @@ async def refresh_access_token(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error)
-        )
+        ) from error
 
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == request_refresh_token_data.refresh_token)
     result = await db.execute(stmt)
@@ -366,7 +369,7 @@ async def request_user_password_reset(
     db: Annotated[AsyncSession, Depends(get_db)],
     email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
     reset_password_data: PasswordResetRequestSchema
-):
+) -> MessageResponseSchema:
     stmt = select(UserModel).where(UserModel.email == reset_password_data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
@@ -381,14 +384,17 @@ async def request_user_password_reset(
         )
         db.add(reset_token)
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing the request.",
-        )
+        ) from e
 
-    reset_link = f"http://127.0.0.1:8000/api/v1/accounts/password-reset/complete?email={user.email}&token={reset_token.token}"
+    reset_link = (
+        f"http://127.0.0.1:8000/api/v1/accounts/password-reset/complete"
+        f"?email={user.email}&token={reset_token.token}"
+    )
 
     await email_sender.send_password_reset_email(
         email=reset_password_data.email,
@@ -404,7 +410,7 @@ async def reset_user_password(
     db: Annotated[AsyncSession, Depends(get_db)],
     email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
     reset_password_data: PasswordResetCompleteRequestSchema
-):
+) -> MessageResponseSchema:
     stmt = select(UserModel).where(UserModel.email == reset_password_data.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
@@ -443,12 +449,12 @@ async def reset_user_password(
         user.password = reset_password_data.new_password
         await db.delete(token_record)
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
-        )
+        ) from e
 
     login_link = "http://127.0.0.1:8000/api/v1/accounts/login/"
 
@@ -475,7 +481,7 @@ async def change_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error)
-        )
+        ) from error
     user = await db.get(UserModel, user_id)
 
     if not user:
@@ -494,11 +500,11 @@ async def change_password(
         user.password = change_password_data.new_password
         db.add(user)
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password."
-        )
+        ) from e
 
     return MessageResponseSchema(
         message="Password was changed successfully!"
@@ -510,7 +516,7 @@ async def change_user_group_from_admin(
     change_group_data: ChangeUserGroupRequestSchema,
     current_user: Annotated[UserModel, Depends(get_current_user)],
     user_id: int
-):
+) -> MessageResponseSchema:
     if current_user.group.name != UserGroupEnum.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -530,7 +536,7 @@ async def change_user_group_from_admin(
     if user.group.name == change_group_data.group:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"User is already in the '{change_group_data.group.value}' group."
+            detail=f"User is already in the {change_group_data.group.value!r} group."
         )
 
     try:
@@ -538,23 +544,24 @@ async def change_user_group_from_admin(
         user.group = group
         db.add(user)
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="An error occurred while changing the group."
-        )
+        ) from e
 
     return MessageResponseSchema(
-        message=f"User group was successfully changed to '{change_group_data.group.value}'."
+        message=f"User group was successfully changed to {change_group_data.group.value!r}."
     )
+
 
 async def activate_deactivate_user_manually(
     db: Annotated[AsyncSession, Depends(get_db)],
     activation_data: UserActiveDeactivateStatusRequestSchema,
     current_user: Annotated[UserModel, Depends(get_current_user)],
     user_id: int
-):
+) -> MessageResponseSchema:
     if current_user.group.name != UserGroupEnum.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -586,28 +593,17 @@ async def activate_deactivate_user_manually(
         if activation_data.is_active is False:
             await db.execute(delete(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id))
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="An error occurred while processing request."
-        )
+        ) from e
 
     if activation_data.is_active is False:
         return MessageResponseSchema(
-            message=f"User was successfully deactivated."
+            message="User was successfully deactivated."
         )
     return MessageResponseSchema(
-        message=f"User was successfully activated."
+        message="User was successfully activated."
     )
-
-
-
-
-
-
-
-
-
-
-
