@@ -12,11 +12,14 @@ from schemas.movies import (
     GenreRequestSchema,
     GenreResponseSchema,
     GenreWithMovieCountResponseSchema,
+    StarRequestSchema,
+    StarResponseSchema,
     MovieListItemResponseSchema
 )
 from database.models.movies import (
     CertificationModel,
     GenreModel,
+    StarModel,
     MovieModel
 )
 from database import get_db
@@ -432,6 +435,203 @@ async def resolve_genre(
             )
         return genre
     return await get_or_create_genre(
+        db=db,
+        value=value
+    )
+
+
+async def create_star_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    star_data: StarRequestSchema,
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
+) -> StarResponseSchema:
+    stmt = select(StarModel).where(
+        StarModel.name == star_data.name
+    )
+
+    result = await db.execute(stmt)
+    star = result.scalars().first()
+
+    if star:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A star with this name {star.name!r} already exists."
+        )
+
+    try:
+        star = StarModel(
+            name=star_data.name
+        )
+
+        db.add(star)
+        await db.commit()
+        await db.refresh(star)
+
+        return StarResponseSchema.model_validate(star)
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while creating the star."
+        ) from e
+
+
+async def get_stars(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[StarResponseSchema]:
+    stmt = select(StarModel)
+    result = await db.execute(stmt)
+    stars = result.scalars().all()
+
+    if not stars:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No stars found."
+        )
+
+    star_list = [
+        StarResponseSchema.model_validate(star)
+        for star in stars
+    ]
+
+    return star_list
+
+
+async def get_star_by_id(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    star_id: int
+) -> StarResponseSchema:
+    stmt = select(StarModel).where(
+        StarModel.id == star_id
+    )
+
+    result = await db.execute(stmt)
+    star = result.scalars().first()
+
+    if not star:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Star with id {star_id} not found."
+        )
+
+    return StarResponseSchema.model_validate(star)
+
+
+async def update_star_service(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        star_id: int,
+        data: StarRequestSchema,
+        current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
+) -> StarResponseSchema:
+    stmt = select(StarModel).where(
+        StarModel.id == star_id
+    )
+    result = await db.execute(stmt)
+    star = result.scalars().first()
+
+    if not star:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Star with id {star_id} not found."
+        )
+
+    stmt = select(StarModel).where(
+        StarModel.name == data.name,
+        StarModel.id != star_id
+    )
+    result = await db.execute(stmt)
+    is_the_same_name = result.scalars().first()
+
+    if is_the_same_name:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A star with this name {data.name!r} already exists."
+        )
+
+    try:
+        update_instance(star, data=data)
+        db.add(star)
+        await db.commit()
+        await db.refresh(star)
+
+        return StarResponseSchema.model_validate(star)
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while updating the star."
+        ) from e
+
+
+async def delete_star_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    star_id: int,
+) -> MessageResponseSchema:
+    stmt = select(StarModel).where(
+        StarModel.id == star_id
+    )
+    result = await db.execute(stmt)
+    star = result.scalars().first()
+
+    if not star:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Star with id {star_id} not found."
+        )
+
+    try:
+        await db.delete(star)
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Star {star.name!r} was successfully deleted."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while deleting the star."
+        ) from e
+
+
+async def get_or_create_star(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    value: str
+) -> StarModel:
+    stmt = select(StarModel).where(StarModel.name == value)
+    result = await db.execute(stmt)
+    star = result.scalars().first()
+
+    if not star:
+        star = StarModel(
+            name=value
+        )
+        try:
+            db.add(star)
+            await db.commit()
+            await db.refresh(star)
+        except SQLAlchemyError as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while creating the star."
+            ) from e
+    return star
+
+
+async def resolve_star(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    value: str | int
+) -> StarModel:
+    if isinstance(value, int):
+        star = await db.get(StarModel, value)
+        if not star:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Star with id {value} not found."
+            )
+        return star
+    return await get_or_create_star(
         db=db,
         value=value
     )
