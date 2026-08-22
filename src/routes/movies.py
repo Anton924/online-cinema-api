@@ -10,6 +10,8 @@ from schemas.movies import (
     GenreWithMovieCountResponseSchema,
     StarRequestSchema,
     StarResponseSchema,
+    DirectorRequestSchema,
+    DirectorResponseSchema,
     MovieListItemResponseSchema
 )
 from services.movies import (
@@ -28,7 +30,12 @@ from services.movies import (
     get_stars,
     get_star_by_id,
     update_star_service,
-    delete_star_service
+    delete_star_service,
+    create_director_service,
+    get_directors,
+    get_director_by_id,
+    update_director_service,
+    delete_director_service
 )
 from database.models.accounts import (
     UserModel,
@@ -296,4 +303,85 @@ async def delete_star(
         db=db,
         current_user=current_user,
         star_id=star_id,
+    )
+
+
+@router.post(
+    "/directors",
+    status_code=status.HTTP_201_CREATED,
+    response_model=DirectorResponseSchema
+)
+async def create_director(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    director_data: DirectorRequestSchema,
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
+) -> DirectorResponseSchema:
+    return await create_director_service(
+        db=db,
+        director_data=director_data,
+        current_user=current_user
+    )
+
+
+@router.get(
+    "/directors",
+    status_code=status.HTTP_200_OK,
+    response_model=list[DirectorResponseSchema]
+)
+async def list_directors(
+    db: Annotated[AsyncSession, Depends(get_db)]
+) -> list[DirectorResponseSchema]:
+    return await get_directors(
+        db=db
+    )
+
+
+@router.get(
+    "/directors/{director_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=DirectorResponseSchema
+)
+async def get_director(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    director_id: int
+) -> DirectorResponseSchema:
+    return await get_director_by_id(
+        db=db,
+        director_id=director_id
+    )
+
+
+@router.patch(
+    "/directors/{director_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=DirectorResponseSchema
+)
+async def update_director(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    director_id: int,
+    data: DirectorRequestSchema
+) -> DirectorResponseSchema:
+    return await update_director_service(
+        db=db,
+        current_user=current_user,
+        director_id=director_id,
+        data=data
+    )
+
+
+@router.delete(
+    "/directors/{director_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema
+)
+async def delete_director(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    director_id: int,
+) -> MessageResponseSchema:
+    return await delete_director_service(
+        db=db,
+        current_user=current_user,
+        director_id=director_id,
     )
