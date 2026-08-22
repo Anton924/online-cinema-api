@@ -14,12 +14,15 @@ from schemas.movies import (
     GenreWithMovieCountResponseSchema,
     StarRequestSchema,
     StarResponseSchema,
+    DirectorRequestSchema,
+    DirectorResponseSchema,
     MovieListItemResponseSchema
 )
 from database.models.movies import (
     CertificationModel,
     GenreModel,
     StarModel,
+    DirectorModel,
     MovieModel
 )
 from database import get_db
@@ -632,6 +635,203 @@ async def resolve_star(
             )
         return star
     return await get_or_create_star(
+        db=db,
+        value=value
+    )
+
+
+async def create_director_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    director_data: DirectorRequestSchema,
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
+) -> DirectorResponseSchema:
+    stmt = select(DirectorModel).where(
+        DirectorModel.name == director_data.name
+    )
+
+    result = await db.execute(stmt)
+    director = result.scalars().first()
+
+    if director:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A director with this name {director.name!r} already exists."
+        )
+
+    try:
+        director = DirectorModel(
+            name=director_data.name
+        )
+
+        db.add(director)
+        await db.commit()
+        await db.refresh(director)
+
+        return DirectorResponseSchema.model_validate(director)
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while creating the director."
+        ) from e
+
+
+async def get_directors(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[DirectorResponseSchema]:
+    stmt = select(DirectorModel)
+    result = await db.execute(stmt)
+    directors = result.scalars().all()
+
+    if not directors:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No directors found."
+        )
+
+    director_list = [
+        DirectorResponseSchema.model_validate(director)
+        for director in directors
+    ]
+
+    return director_list
+
+
+async def get_director_by_id(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    director_id: int
+) -> DirectorResponseSchema:
+    stmt = select(DirectorModel).where(
+        DirectorModel.id == director_id
+    )
+
+    result = await db.execute(stmt)
+    director = result.scalars().first()
+
+    if not director:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Director with id {director_id} not found."
+        )
+
+    return DirectorResponseSchema.model_validate(director)
+
+
+async def update_director_service(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        director_id: int,
+        data: DirectorRequestSchema,
+        current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
+) -> DirectorResponseSchema:
+    stmt = select(DirectorModel).where(
+        DirectorModel.id == director_id,
+    )
+    result = await db.execute(stmt)
+    director = result.scalars().first()
+
+    if not director:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Director with id {director_id} not found."
+        )
+
+    stmt = select(DirectorModel).where(
+        DirectorModel.name == data.name,
+        DirectorModel.id != director_id
+    )
+    result = await db.execute(stmt)
+    is_the_same_name = result.scalars().first()
+
+    if is_the_same_name:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A director with this name {data.name!r} already exists."
+        )
+
+    try:
+        update_instance(director, data=data)
+        db.add(director)
+        await db.commit()
+        await db.refresh(director)
+
+        return DirectorResponseSchema.model_validate(director)
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while updating the director."
+        ) from e
+
+
+async def delete_director_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
+    director_id: int,
+) -> MessageResponseSchema:
+    stmt = select(DirectorModel).where(
+        DirectorModel.id == director_id
+    )
+    result = await db.execute(stmt)
+    director = result.scalars().first()
+
+    if not director:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Director with id {director_id} not found."
+        )
+
+    try:
+        await db.delete(director)
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Director {director.name!r} was successfully deleted."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while deleting the director."
+        ) from e
+
+
+async def get_or_create_director(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    value: str
+) -> DirectorModel:
+    stmt = select(DirectorModel).where(DirectorModel.name == value)
+    result = await db.execute(stmt)
+    director = result.scalars().first()
+
+    if not director:
+        director = DirectorModel(
+            name=value
+        )
+        try:
+            db.add(director)
+            await db.commit()
+            await db.refresh(director)
+        except SQLAlchemyError as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while creating the director."
+            ) from e
+    return director
+
+
+async def resolve_director(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    value: str | int
+) -> DirectorModel:
+    if isinstance(value, int):
+        director = await db.get(DirectorModel, value)
+        if not director:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Director with id {value} not found."
+            )
+        return director
+    return await get_or_create_director(
         db=db,
         value=value
     )
