@@ -165,3 +165,24 @@ class LikeDislikeMovieSchema(BaseModel):
 
 class MovieRateSchema(BaseModel):
     score: int = Field(ge=1, le=10)
+
+
+class MovieCommentSchema(BaseModel):
+    comment : str = Field(min_length=1)
+    parent_id: int | None = Field(default=None, examples=[None])
+
+
+class MovieCommentListItemResponseSchema(BaseModel):
+    id: int
+    user: str
+    parent_id: int | None = Field(default=None, examples=[None])
+    comment: str
+
+
+class MovieCommentResponseSchema(BaseModel):
+    movie_name: str
+    comments: list[MovieCommentListItemResponseSchema] | None
+
+
+class MovieCommentUpdateSchema(BaseModel):
+    comment: str = Field(min_length=1)
