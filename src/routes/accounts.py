@@ -21,7 +21,6 @@ from schemas.accounts import (
     ChangeUserGroupRequestSchema,
     UserActiveDeactivateStatusRequestSchema
 )
-
 from services.accounts import (
     register_user,
     activate_user,
