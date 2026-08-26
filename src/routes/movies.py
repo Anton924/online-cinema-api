@@ -17,7 +17,8 @@ from schemas.movies import (
     MovieListItemResponseSchema,
     MovieDetailResponseSchema,
     MovieUpdateRequestSchema,
-    PaginatedMovieResponseSchema
+    PaginatedMovieResponseSchema,
+    LikeDislikeMovieSchema
 )
 from services.movies import (
     create_certification_service,
@@ -48,7 +49,9 @@ from services.movies import (
     delete_movie_service,
     add_movie_to_favorites,
     remove_movie_from_favorites,
-    get_favorite_movies
+    get_favorite_movies,
+    set_movie_reaction_service,
+    remove_movie_reaction_service
 )
 from database.models.accounts import (
     UserModel,
@@ -1194,6 +1197,135 @@ async def remove_from_favorites(
     movie_id: int
 ) -> MessageResponseSchema:
     return await remove_movie_from_favorites(
+        db=db,
+        current_user=current_user,
+        movie_id=movie_id
+    )
+
+
+@router.post(
+    "/{movie_id}/like",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Movie with id 1 not found."
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - You have already reacted to this movie with the same reaction.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "already_liked": {
+                            "summary": "Already Liked",
+                            "value": {
+                                "detail": "The movie 'Inception' is already liked by you"
+                            }
+                        },
+                        "already_disliked": {
+                            "summary": "Already Disliked",
+                            "value": {
+                                "detail": "The movie 'Inception' is already disliked by you"
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while estimating the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while estimating the movie."
+                    }
+                }
+            },
+        },
+    }
+)
+async def set_movie_reaction(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int,
+    like_dislike: LikeDislikeMovieSchema
+) -> MessageResponseSchema:
+    return await set_movie_reaction_service(
+        db=db,
+        current_user=current_user,
+        movie_id=movie_id,
+        like_dislike=like_dislike
+    )
+
+
+@router.delete(
+    "/{movie_id}/like",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists, or you have not reacted to it.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "movie_not_found": {
+                            "summary": "Movie Not Found",
+                            "value": {
+                                "detail": "Movie with id 1 not found."
+                            }
+                        },
+                        "no_reaction": {
+                            "summary": "No Reaction Found",
+                            "value": {
+                                "detail": "You have not reacted to the 'Inception' movie"
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting your reaction to the movie.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "delete_like_failed": {
+                            "summary": "Failed To Delete Like",
+                            "value": {
+                                "detail": "An error occurred while deleting like to the movie."
+                            }
+                        },
+                        "delete_dislike_failed": {
+                            "summary": "Failed To Delete Dislike",
+                            "value": {
+                                "detail": "An error occurred while deleting dislike to the movie."
+                            }
+                        },
+                    }
+                }
+            },
+        },
+    }
+)
+async def remove_movie_reaction(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int
+) -> MessageResponseSchema:
+    return await remove_movie_reaction_service(
         db=db,
         current_user=current_user,
         movie_id=movie_id
