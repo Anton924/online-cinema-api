@@ -1149,3 +1149,97 @@ async def delete_movie_service(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while deleting the movie."
         ) from e
+
+
+async def add_movie_to_favorites(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int
+) -> MessageResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id} not found."
+        )
+
+    if movie in current_user.favorite_movies:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This movie is already in your favorites."
+        )
+
+    try:
+        current_user.favorite_movies.append(movie)
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Movie {movie.name!r} was successfully added to favorites for {current_user.email}"
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while adding the movie to favorites."
+        ) from e
+
+
+async def remove_movie_from_favorites(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int
+) -> MessageResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id} not found."
+        )
+
+    if movie not in current_user.favorite_movies:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This movie is not in your favorites."
+        )
+
+    try:
+        current_user.favorite_movies.remove(movie)
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Movie {movie.name!r} was removed from favorites for {current_user.email}"
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while deleting the movie to favorites."
+        ) from e
+
+
+async def get_favorite_movies(
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    page: int,
+    per_page: int,
+) -> PaginatedMovieResponseSchema:
+    total = len(current_user.favorite_movies)
+    total_pages = total // per_page if total % per_page == 0 else total // per_page + 1
+    movies_list = [
+        MovieListItemResponseSchema.model_validate(favorite_movie)
+        for favorite_movie in current_user.favorite_movies[(per_page * (page - 1)):(per_page * page)]
+    ]
+
+    return PaginatedMovieResponseSchema(
+        items=movies_list,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages
+    )
