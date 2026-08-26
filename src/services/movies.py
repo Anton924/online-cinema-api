@@ -22,14 +22,17 @@ from schemas.movies import (
     MovieListItemResponseSchema,
     MovieDetailResponseSchema,
     MovieUpdateRequestSchema,
-    PaginatedMovieResponseSchema
+    PaginatedMovieResponseSchema,
+    LikeDislikeMovieSchema
 )
 from database.models.movies import (
     CertificationModel,
     GenreModel,
     StarModel,
     DirectorModel,
-    MovieModel
+    MovieModel,
+    LikeDislikeEnum,
+    MovieLikeDislikeModel
 )
 from database import get_db
 from security.dependencies import require_roles
@@ -1243,3 +1246,115 @@ async def get_favorite_movies(
         per_page=per_page,
         total_pages=total_pages
     )
+
+
+async def set_movie_reaction_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int,
+    like_dislike: LikeDislikeMovieSchema
+) -> MessageResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id} not found."
+        )
+
+    stmt = select(MovieLikeDislikeModel).where(
+        MovieLikeDislikeModel.user_id == current_user.id,
+        MovieLikeDislikeModel.movie_id == movie_id
+    )
+    result = await db.execute(stmt)
+    record = result.scalars().first()
+    try:
+        if record:
+            if record.like_dislike == like_dislike.like_dislike:
+                if like_dislike.like_dislike == LikeDislikeEnum.DISLIKE:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"The movie {movie.name!r} is already disliked by you"
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"The movie {movie.name!r} is already liked by you"
+                    )
+            else:
+                record.like_dislike = like_dislike.like_dislike
+        else:
+            record = MovieLikeDislikeModel(
+                user_id=current_user.id,
+                movie_id=movie_id,
+                like_dislike=like_dislike.like_dislike
+            )
+            db.add(record)
+        await db.commit()
+        await db.refresh(record)
+        if like_dislike.like_dislike == LikeDislikeEnum.DISLIKE:
+            return MessageResponseSchema(
+                message=f"Movie {movie.name!r} was disliked by you."
+            )
+        return MessageResponseSchema(
+            message=f"Movie {movie.name!r} was liked by you."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while estimating the movie."
+        ) from e
+
+
+async def remove_movie_reaction_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int
+) -> MessageResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id!r} not found."
+        )
+
+    stmt = select(MovieLikeDislikeModel).where(
+        MovieLikeDislikeModel.user_id == current_user.id,
+        MovieLikeDislikeModel.movie_id == movie_id
+    )
+
+    result = await db.execute(stmt)
+    record = result.scalars().first()
+
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"You have not reacted to the {movie.name!r} movie"
+        )
+    try:
+        await db.delete(record)
+        await db.commit()
+
+        return MessageResponseSchema(
+            message=f"You have deleted your reaction for the movie {movie.name!r}"
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        if record.like_dislike == LikeDislikeEnum.DISLIKE:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while deleting dislike to the movie."
+            ) from e
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while deleting like to the movie."
+            ) from e
