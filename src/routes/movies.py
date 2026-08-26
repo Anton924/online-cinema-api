@@ -61,7 +61,29 @@ router = APIRouter()
 @router.post(
     "/certifications",
     status_code=status.HTTP_201_CREATED,
-    response_model=CertificationResponseSchema
+    response_model=CertificationResponseSchema,
+    responses={
+        409: {
+            "description": "Conflict - A certification with this name already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A certification with this name 'PG-13' already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while creating the certification.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while creating the certification."
+                    }
+                }
+            },
+        },
+    }
 )
 async def create_certification(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -78,7 +100,19 @@ async def create_certification(
 @router.get(
     "/certifications",
     status_code=status.HTTP_200_OK,
-    response_model=list[CertificationResponseSchema]
+    response_model=list[CertificationResponseSchema],
+    responses={
+        404: {
+            "description": "Not Found - No certifications found.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "No certifications found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def list_certifications(
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -91,7 +125,19 @@ async def list_certifications(
 @router.get(
     "/certifications/{certification_id}",
     status_code=status.HTTP_200_OK,
-    response_model=CertificationResponseSchema
+    response_model=CertificationResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No certification with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Certification with id 1 not found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def get_certification(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -106,7 +152,39 @@ async def get_certification(
 @router.patch(
     "/certifications/{certification_id}",
     status_code=status.HTTP_200_OK,
-    response_model=CertificationResponseSchema
+    response_model=CertificationResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No certification with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Certification with id 1 not found."
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - A certification with this name already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A certification with this name 'PG-13' already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while updating the certification.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while updating the certification."
+                    }
+                }
+            },
+        },
+    }
 )
 async def update_certification(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -125,7 +203,39 @@ async def update_certification(
 @router.delete(
     "/certifications/{certification_id}",
     status_code=status.HTTP_200_OK,
-    response_model=MessageResponseSchema
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No certification with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Certification with id 1 not found."
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - The certification is still assigned to one or more movies.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Cannot delete certification 'PG-13' - it is still assigned to one or more movies."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting the certification.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while deleting the certification."
+                    }
+                }
+            },
+        },
+    }
 )
 async def delete_certification(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -142,7 +252,29 @@ async def delete_certification(
 @router.post(
     "/genres",
     status_code=status.HTTP_201_CREATED,
-    response_model=GenreResponseSchema
+    response_model=GenreResponseSchema,
+    responses={
+        409: {
+            "description": "Conflict - A genre with this name already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A genre with this name 'Action' already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while creating the genre.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while creating the genre."
+                    }
+                }
+            },
+        },
+    }
 )
 async def create_genre(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -159,7 +291,19 @@ async def create_genre(
 @router.get(
     "/genres",
     status_code=status.HTTP_200_OK,
-    response_model=list[GenreResponseSchema]
+    response_model=list[GenreResponseSchema],
+    responses={
+        404: {
+            "description": "Not Found - No genres found.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "No genres found"
+                    }
+                }
+            },
+        },
+    }
 )
 async def list_genres(
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -172,7 +316,19 @@ async def list_genres(
 @router.get(
     "/genres/{genre_id}",
     status_code=status.HTTP_200_OK,
-    response_model=GenreWithMovieCountResponseSchema
+    response_model=GenreWithMovieCountResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No genre with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Genre with id 1 not found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def get_genre(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -187,7 +343,19 @@ async def get_genre(
 @router.get(
     "/genres/{genre_id}/movies",
     status_code=status.HTTP_200_OK,
-    response_model=list[MovieListItemResponseSchema] | MessageResponseSchema
+    response_model=list[MovieListItemResponseSchema] | MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No genre with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Genre with id 1 not found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def get_genre_movies(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -202,7 +370,39 @@ async def get_genre_movies(
 @router.patch(
     "/genres/{genre_id}",
     status_code=status.HTTP_200_OK,
-    response_model=GenreResponseSchema
+    response_model=GenreResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No genre with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Genre with id 1 not found."
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - A genre with this name already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A genre with this name 'Action' already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while updating the genre.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while updating the genre."
+                    }
+                }
+            },
+        },
+    }
 )
 async def update_genre(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -221,7 +421,29 @@ async def update_genre(
 @router.delete(
     "/genres/{genre_id}",
     status_code=status.HTTP_200_OK,
-    response_model=MessageResponseSchema
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No genre with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Genre with id 1 not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting the genre.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while deleting the genre."
+                    }
+                }
+            },
+        },
+    }
 )
 async def delete_genre(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -238,7 +460,29 @@ async def delete_genre(
 @router.post(
     "/stars",
     status_code=status.HTTP_201_CREATED,
-    response_model=StarResponseSchema
+    response_model=StarResponseSchema,
+    responses={
+        409: {
+            "description": "Conflict - A star with this name already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A star with this name 'Tom Hardy' already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while creating the star.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while creating the star."
+                    }
+                }
+            },
+        },
+    }
 )
 async def create_star(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -255,7 +499,19 @@ async def create_star(
 @router.get(
     "/stars",
     status_code=status.HTTP_200_OK,
-    response_model=list[StarResponseSchema]
+    response_model=list[StarResponseSchema],
+    responses={
+        404: {
+            "description": "Not Found - No stars found.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "No stars found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def list_stars(
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -268,7 +524,19 @@ async def list_stars(
 @router.get(
     "/stars/{star_id}",
     status_code=status.HTTP_200_OK,
-    response_model=StarResponseSchema
+    response_model=StarResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No star with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Star with id 1 not found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def get_star(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -283,7 +551,39 @@ async def get_star(
 @router.patch(
     "/stars/{star_id}",
     status_code=status.HTTP_200_OK,
-    response_model=StarResponseSchema
+    response_model=StarResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No star with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Star with id 1 not found."
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - A star with this name already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A star with this name 'Tom Hardy' already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while updating the star.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while updating the star."
+                    }
+                }
+            },
+        },
+    }
 )
 async def update_star(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -302,7 +602,29 @@ async def update_star(
 @router.delete(
     "/stars/{star_id}",
     status_code=status.HTTP_200_OK,
-    response_model=MessageResponseSchema
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No star with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Star with id 1 not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting the star.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while deleting the star."
+                    }
+                }
+            },
+        },
+    }
 )
 async def delete_star(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -319,7 +641,29 @@ async def delete_star(
 @router.post(
     "/directors",
     status_code=status.HTTP_201_CREATED,
-    response_model=DirectorResponseSchema
+    response_model=DirectorResponseSchema,
+    responses={
+        409: {
+            "description": "Conflict - A director with this name already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A director with this name 'Christopher Nolan' already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while creating the director.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while creating the director."
+                    }
+                }
+            },
+        },
+    }
 )
 async def create_director(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -336,7 +680,19 @@ async def create_director(
 @router.get(
     "/directors",
     status_code=status.HTTP_200_OK,
-    response_model=list[DirectorResponseSchema]
+    response_model=list[DirectorResponseSchema],
+    responses={
+        404: {
+            "description": "Not Found - No directors found.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "No directors found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def list_directors(
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -349,7 +705,19 @@ async def list_directors(
 @router.get(
     "/directors/{director_id}",
     status_code=status.HTTP_200_OK,
-    response_model=DirectorResponseSchema
+    response_model=DirectorResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No director with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Director with id 1 not found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def get_director(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -364,7 +732,39 @@ async def get_director(
 @router.patch(
     "/directors/{director_id}",
     status_code=status.HTTP_200_OK,
-    response_model=DirectorResponseSchema
+    response_model=DirectorResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No director with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Director with id 1 not found."
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - A director with this name already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A director with this name 'Christopher Nolan' already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while updating the director.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while updating the director."
+                    }
+                }
+            },
+        },
+    }
 )
 async def update_director(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -383,7 +783,29 @@ async def update_director(
 @router.delete(
     "/directors/{director_id}",
     status_code=status.HTTP_200_OK,
-    response_model=MessageResponseSchema
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No director with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Director with id 1 not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting the director.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while deleting the director."
+                    }
+                }
+            },
+        },
+    }
 )
 async def delete_director(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -401,6 +823,61 @@ async def delete_director(
     "",
     status_code=status.HTTP_201_CREATED,
     response_model=MovieDetailResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - The certification, genre, star, or director id given does not exist.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "certification_not_found": {
+                            "summary": "Certification Not Found",
+                            "value": {
+                                "detail": "Certification with id 1 not found."
+                            }
+                        },
+                        "genre_not_found": {
+                            "summary": "Genre Not Found",
+                            "value": {
+                                "detail": "Genre with id 1 not found."
+                            }
+                        },
+                        "star_not_found": {
+                            "summary": "Star Not Found",
+                            "value": {
+                                "detail": "Star with id 1 not found."
+                            }
+                        },
+                        "director_not_found": {
+                            "summary": "Director Not Found",
+                            "value": {
+                                "detail": "Director with id 1 not found."
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - A movie with this name, year, and duration already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A movie with this name, year, and duration already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while creating the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while creating the movie."
+                    }
+                }
+            },
+        },
+    }
 )
 async def create_movie(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -453,6 +930,18 @@ async def list_movies(
     "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MovieDetailResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Movie with id 1 not found."
+                    }
+                }
+            },
+        },
+    }
 )
 async def get_movie(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -468,6 +957,67 @@ async def get_movie(
     "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MovieDetailResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - The movie, certification, genre, star, or director id given does not exist.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "movie_not_found": {
+                            "summary": "Movie Not Found",
+                            "value": {
+                                "detail": "Movie with id 1 not found."
+                            }
+                        },
+                        "certification_not_found": {
+                            "summary": "Certification Not Found",
+                            "value": {
+                                "detail": "Certification with id 1 not found."
+                            }
+                        },
+                        "genre_not_found": {
+                            "summary": "Genre Not Found",
+                            "value": {
+                                "detail": "Genre with id 1 not found."
+                            }
+                        },
+                        "star_not_found": {
+                            "summary": "Star Not Found",
+                            "value": {
+                                "detail": "Star with id 1 not found."
+                            }
+                        },
+                        "director_not_found": {
+                            "summary": "Director Not Found",
+                            "value": {
+                                "detail": "Director with id 1 not found."
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - A movie with this name, year, and duration already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A movie with this name, year, and duration already exists."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while updating the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while updating the movie."
+                    }
+                }
+            },
+        },
+    }
 )
 async def update_movie(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -487,6 +1037,28 @@ async def update_movie(
     "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Movie with id 1 not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while deleting the movie."
+                    }
+                }
+            },
+        },
+    }
 )
 async def delete_movie(
     db: Annotated[AsyncSession, Depends(get_db)],
