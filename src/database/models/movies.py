@@ -1,10 +1,10 @@
 import enum
 from typing import List, Optional
 import uuid as uuid_pkg
-
-from database import Base
 from sqlalchemy import Integer, String, Table, Column, ForeignKey, Uuid, Float, Text, DECIMAL, UniqueConstraint, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+
+from database import Base
 
 
 class LikeDislikeEnum(str, enum.Enum):
@@ -242,5 +242,10 @@ class MovieModel(Base):
 
     comments: Mapped[List["MovieCommentModel"]] = relationship(
         "MovieCommentModel",
+        back_populates="movie"
+    )
+
+    cart_items: Mapped[List["CartItem"]] = relationship(
+        "CartItem",
         back_populates="movie"
     )

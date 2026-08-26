@@ -105,6 +105,11 @@ class UserModel(Base):
         back_populates="user"
     )
 
+    cart: Mapped["CartModel"] = relationship(
+        "CartModel",
+        back_populates="user"
+    )
+
     def has_group(self, group_name: UserGroupEnum) -> bool:
         return self.group.name == group_name
 
