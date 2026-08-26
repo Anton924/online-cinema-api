@@ -18,7 +18,8 @@ from schemas.movies import (
     MovieDetailResponseSchema,
     MovieUpdateRequestSchema,
     PaginatedMovieResponseSchema,
-    LikeDislikeMovieSchema
+    LikeDislikeMovieSchema,
+    MovieRateSchema
 )
 from services.movies import (
     create_certification_service,
@@ -51,7 +52,9 @@ from services.movies import (
     remove_movie_from_favorites,
     get_favorite_movies,
     set_movie_reaction_service,
-    remove_movie_reaction_service
+    remove_movie_reaction_service,
+    set_movie_rating_service,
+    remove_movie_rating_service
 )
 from database.models.accounts import (
     UserModel,
@@ -1326,6 +1329,103 @@ async def remove_movie_reaction(
     movie_id: int
 ) -> MessageResponseSchema:
     return await remove_movie_reaction_service(
+        db=db,
+        current_user=current_user,
+        movie_id=movie_id
+    )
+
+
+@router.post(
+    "/{movie_id}/rating",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Movie with id 1 not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while adding score to the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while adding score to the movie."
+                    }
+                }
+            },
+        },
+    }
+)
+async def set_movie_rating(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int,
+    rating: MovieRateSchema
+) -> MessageResponseSchema:
+    return await set_movie_rating_service(
+        db=db,
+        current_user=current_user,
+        movie_id=movie_id,
+        rating=rating
+    )
+
+
+@router.delete(
+    "/{movie_id}/rating",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists, or you have not rated it.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "movie_not_found": {
+                            "summary": "Movie Not Found",
+                            "value": {
+                                "detail": "Movie with id 1 not found."
+                            }
+                        },
+                        "no_rating": {
+                            "summary": "No Rating Found",
+                            "value": {
+                                "detail": "You have not rated the movie 'Inception'"
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting score to the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while deleting score to the movie."
+                    }
+                }
+            },
+        },
+    }
+)
+async def remove_movie_rating(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int
+) -> MessageResponseSchema:
+    return await remove_movie_rating_service(
         db=db,
         current_user=current_user,
         movie_id=movie_id
