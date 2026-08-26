@@ -45,7 +45,10 @@ from services.movies import (
     get_movies,
     get_movie_by_id,
     update_movie_service,
-    delete_movie_service
+    delete_movie_service,
+    add_movie_to_favorites,
+    remove_movie_from_favorites,
+    get_favorite_movies
 )
 from database.models.accounts import (
     UserModel,
@@ -927,6 +930,26 @@ async def list_movies(
 
 
 @router.get(
+    "/favorites",
+    status_code=status.HTTP_200_OK,
+    response_model=PaginatedMovieResponseSchema
+)
+async def list_favorite_movies(
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    page: int = 1,
+    per_page: int = 20,
+) -> PaginatedMovieResponseSchema:
+    return await get_favorite_movies(
+        current_user=current_user,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@router.get(
     "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MovieDetailResponseSchema,
@@ -1069,4 +1092,109 @@ async def delete_movie(
         db=db,
         current_user=current_user,
         movie_id=movie_id,
+    )
+
+
+@router.post(
+    "/{movie_id}/favorites",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Movie with id 1 not found."
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - This movie is already in your favorites.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "This movie is already in your favorites."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while adding the movie to favorites.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while adding the movie to favorites."
+                    }
+                }
+            },
+        },
+    }
+)
+async def add_to_favorites(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int
+) -> MessageResponseSchema:
+    return await add_movie_to_favorites(
+        db=db,
+        current_user=current_user,
+        movie_id=movie_id
+    )
+
+
+@router.delete(
+    "/{movie_id}/favorites",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists, or it is not in your favorites.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "movie_not_found": {
+                            "summary": "Movie Not Found",
+                            "value": {
+                                "detail": "Movie with id 1 not found."
+                            }
+                        },
+                        "not_in_favorites": {
+                            "summary": "Not In Favorites",
+                            "value": {
+                                "detail": "This movie is not in your favorites."
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting the movie to favorites.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while deleting the movie to favorites."
+                    }
+                }
+            },
+        },
+    }
+)
+async def remove_from_favorites(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int
+) -> MessageResponseSchema:
+    return await remove_movie_from_favorites(
+        db=db,
+        current_user=current_user,
+        movie_id=movie_id
     )
