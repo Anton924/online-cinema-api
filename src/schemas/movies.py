@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from database.models.movies import LikeDislikeEnum
+
 
 class CertificationRequestSchema(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -155,3 +157,7 @@ class PaginatedMovieResponseSchema(BaseModel):
     page: int
     per_page: int
     total_pages: int
+
+
+class LikeDislikeMovieSchema(BaseModel):
+    like_dislike: LikeDislikeEnum = LikeDislikeEnum.LIKE
