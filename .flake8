@@ -11,4 +11,4 @@ extend-exclude =
     */__init__.py
 per-file-ignores =
     src/schemas/*:VNE003,
-    src/database/models/*:VNE003
+    src/database/models/*:VNE003,F821

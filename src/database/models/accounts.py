@@ -84,6 +84,12 @@ class UserModel(Base):
         cascade="all, delete-orphan"
     )
 
+    favorite_movies: Mapped[List["MovieModel"]] = relationship(
+        "MovieModel",
+        secondary=lambda: Base.metadata.tables["movie_favorite"],
+        back_populates="favorited_by",
+    )
+
     def has_group(self, group_name: UserGroupEnum) -> bool:
         return self.group.name == group_name
 
