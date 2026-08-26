@@ -19,7 +19,10 @@ from schemas.movies import (
     MovieUpdateRequestSchema,
     PaginatedMovieResponseSchema,
     LikeDislikeMovieSchema,
-    MovieRateSchema
+    MovieRateSchema,
+    MovieCommentSchema,
+    MovieCommentResponseSchema,
+    MovieCommentUpdateSchema
 )
 from services.movies import (
     create_certification_service,
@@ -54,7 +57,11 @@ from services.movies import (
     set_movie_reaction_service,
     remove_movie_reaction_service,
     set_movie_rating_service,
-    remove_movie_rating_service
+    remove_movie_rating_service,
+    create_comment_service,
+    get_comments_for_movie,
+    delete_comment_service,
+    update_comment_service
 )
 from database.models.accounts import (
     UserModel,
@@ -63,6 +70,10 @@ from database.models.accounts import (
 from database import get_db
 from security.dependencies import require_roles
 from schemas.accounts import MessageResponseSchema
+from notifications.interfaces import EmailSenderInterface
+from config.dependencies import (
+    get_email_sender
+)
 
 router = APIRouter()
 
@@ -1429,4 +1440,200 @@ async def remove_movie_rating(
         db=db,
         current_user=current_user,
         movie_id=movie_id
+    )
+
+
+@router.post(
+    "/{movie_id}/comments",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - The movie or the parent comment given does not exist.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "movie_not_found": {
+                            "summary": "Movie Not Found",
+                            "value": {
+                                "detail": "Movie with id 1 not found."
+                            }
+                        },
+                        "parent_comment_not_found": {
+                            "summary": "Parent Comment Not Found",
+                            "value": {
+                                "detail": "Parent comment with id 1 not found"
+                            }
+                        },
+                        "parent_comment_wrong_movie": {
+                            "summary": "Parent Comment Belongs To Another Movie",
+                            "value": {
+                                "detail": "Parent comment does not belong to this movie"
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while adding comment to the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while adding comment to the movie."
+                    }
+                }
+            },
+        },
+    }
+)
+async def create_comment(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
+    movie_id: int,
+    data: MovieCommentSchema
+) -> MessageResponseSchema:
+    return await create_comment_service(
+        db=db,
+        current_user=current_user,
+        email_sender=email_sender,
+        movie_id=movie_id,
+        data=data
+    )
+
+
+@router.get(
+    "/{movie_id}/comments",
+    status_code=status.HTTP_200_OK,
+    response_model=MovieCommentResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No movie with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Movie with id 1 not found."
+                    }
+                }
+            },
+        },
+    }
+)
+async def list_comments(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    movie_id: int,
+) -> MovieCommentResponseSchema:
+    return await get_comments_for_movie(
+        db=db,
+        movie_id=movie_id
+    )
+
+
+@router.patch(
+    "/comments/{comment_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        403: {
+            "description": "Forbidden - You can only change your own comments.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "You can change only your comments!"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Not Found - No comment with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Comment with id 1 not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while updating comment to the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while updating comment to the movie."
+                    }
+                }
+            },
+        },
+    }
+)
+async def update_comment(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    comment_id: int,
+    update_data: MovieCommentUpdateSchema
+) -> MessageResponseSchema:
+    return await update_comment_service(
+        db=db,
+        current_user=current_user,
+        comment_id=comment_id,
+        update_data=update_data
+    )
+
+
+@router.delete(
+    "/comments/{comment_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        403: {
+            "description": "Forbidden - You can only delete your own comments.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "You can delete only your comments!"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Not Found - No comment with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Comment with id 1 not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting comment to the movie.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while deleting comment to the movie."
+                    }
+                }
+            },
+        },
+    }
+)
+async def delete_comment(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    comment_id: int,
+) -> MessageResponseSchema:
+    return await delete_comment_service(
+        db=db,
+        current_user=current_user,
+        comment_id=comment_id
     )
