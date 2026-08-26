@@ -90,6 +90,11 @@ class UserModel(Base):
         back_populates="favorited_by",
     )
 
+    likes_dislikes: Mapped[List["MovieLikeDislikeModel"]] = relationship(
+        "MovieLikeDislikeModel",
+        back_populates="user"
+    )
+
     def has_group(self, group_name: UserGroupEnum) -> bool:
         return self.group.name == group_name
 

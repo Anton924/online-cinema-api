@@ -1,9 +1,15 @@
+import enum
 from typing import List, Optional
 import uuid as uuid_pkg
 
 from database import Base
-from sqlalchemy import Integer, String, Table, Column, ForeignKey, Uuid, Float, Text, DECIMAL, UniqueConstraint
+from sqlalchemy import Integer, String, Table, Column, ForeignKey, Uuid, Float, Text, DECIMAL, UniqueConstraint, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+
+class LikeDislikeEnum(str, enum.Enum):
+    LIKE = "like"
+    DISLIKE = "dislike"
 
 
 MovieGenreModel = Table(
@@ -34,6 +40,27 @@ FavoriteMovieModel = Table(
     Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True),
     Column("movie_id", ForeignKey("movies.id", ondelete="CASCADE"), nullable=False, primary_key=True)
 )
+
+
+class MovieLikeDislikeModel(Base):
+    __tablename__ = "movie_likes_dislikes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    like_dislike: Mapped[str] = mapped_column(Enum(LikeDislikeEnum), nullable=False)
+
+    __table_args__ = (UniqueConstraint("user_id", "movie_id"),)
+
+    user: Mapped["UserModel"] = relationship(
+        "UserModel",
+        back_populates="likes_dislikes"
+    )
+
+    movie: Mapped["MovieModel"] = relationship(
+        "MovieModel",
+        back_populates="likes_dislikes"
+    )
 
 
 class CertificationModel(Base):
@@ -133,4 +160,9 @@ class MovieModel(Base):
         "UserModel",
         secondary=FavoriteMovieModel,
         back_populates="favorite_movies"
+    )
+
+    likes_dislikes: Mapped[List["MovieLikeDislikeModel"]] = relationship(
+        "MovieLikeDislikeModel",
+        back_populates="movie"
     )
