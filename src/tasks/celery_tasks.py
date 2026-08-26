@@ -5,6 +5,8 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from tasks.celery_app import app
 
+from database.models import movies  # noqa: F401
+
 from database.models.accounts import (
     ActivationTokenModel,
     PasswordResetTokenModel,
