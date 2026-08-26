@@ -23,7 +23,8 @@ from schemas.movies import (
     MovieDetailResponseSchema,
     MovieUpdateRequestSchema,
     PaginatedMovieResponseSchema,
-    LikeDislikeMovieSchema
+    LikeDislikeMovieSchema,
+    MovieRateSchema
 )
 from database.models.movies import (
     CertificationModel,
@@ -32,7 +33,8 @@ from database.models.movies import (
     DirectorModel,
     MovieModel,
     LikeDislikeEnum,
-    MovieLikeDislikeModel
+    MovieLikeDislikeModel,
+    MovieRateModel
 )
 from database import get_db
 from security.dependencies import require_roles
@@ -1358,3 +1360,92 @@ async def remove_movie_reaction_service(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while deleting like to the movie."
             ) from e
+
+
+async def set_movie_rating_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int,
+    rating: MovieRateSchema
+) -> MessageResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id!r} not found."
+        )
+
+    stmt = select(MovieRateModel).where(
+        MovieRateModel.user_id == current_user.id,
+        MovieRateModel.movie_id == movie.id
+    )
+    result = await db.execute(stmt)
+    record = result.scalars().first()
+
+    try:
+        if record:
+            record.score = rating.score
+        else:
+            record = MovieRateModel(
+                user_id=current_user.id,
+                movie_id=movie.id,
+                score=rating.score
+            )
+            db.add(record)
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Movie {movie.name!r} was successfully rated {rating.score}/10 by {current_user.email}."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while adding score to the movie."
+        ) from e
+
+
+async def remove_movie_rating_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    movie_id: int,
+) -> MessageResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id!r} not found."
+        )
+
+    stmt = select(MovieRateModel).where(
+        MovieRateModel.user_id == current_user.id,
+        MovieRateModel.movie_id == movie.id
+    )
+    result = await db.execute(stmt)
+    record = result.scalars().first()
+
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"You have not rated the movie {movie.name!r}"
+        )
+
+    try:
+        await db.delete(record)
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Your rating for {movie.name!r} was successfully removed."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while deleting score to the movie."
+        ) from e
