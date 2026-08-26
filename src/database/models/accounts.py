@@ -100,6 +100,11 @@ class UserModel(Base):
         back_populates="user"
     )
 
+    comments: Mapped[List["MovieCommentModel"]] = relationship(
+        "MovieCommentModel",
+        back_populates="user"
+    )
+
     def has_group(self, group_name: UserGroupEnum) -> bool:
         return self.group.name == group_name
 

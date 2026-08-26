@@ -92,6 +92,45 @@ class MovieRateModel(Base):
         return value
 
 
+class MovieCommentModel(Base):
+    __tablename__ = "movie_comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("movie_comments.id", ondelete="CASCADE"), nullable=True, default=None
+    )
+    comment: Mapped[str] = mapped_column(Text, nullable=False)
+
+    user: Mapped["UserModel"] = relationship(
+        "UserModel",
+        back_populates="comments"
+    )
+
+    movie: Mapped["MovieModel"] = relationship(
+        "MovieModel",
+        back_populates="comments"
+    )
+
+    parent: Mapped["MovieCommentModel"] = relationship(
+        "MovieCommentModel",
+        back_populates="children_comments",
+        remote_side=[id]
+    )
+
+    children_comments: Mapped[List["MovieCommentModel"]] = relationship(
+        "MovieCommentModel",
+        back_populates="parent"
+    )
+
+    @validates("comment")
+    def validate_comment(self, key: str, value: str) -> str:
+        if len(value) < 0:
+            raise ValueError("Your comment has to consist at least one digit!")
+        return value
+
+
 class CertificationModel(Base):
     __tablename__ = "certifications"
 
@@ -198,5 +237,10 @@ class MovieModel(Base):
 
     scores: Mapped[List["MovieRateModel"]] = relationship(
         "MovieRateModel",
+        back_populates="movie"
+    )
+
+    comments: Mapped[List["MovieCommentModel"]] = relationship(
+        "MovieCommentModel",
         back_populates="movie"
     )
