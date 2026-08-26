@@ -24,7 +24,11 @@ from schemas.movies import (
     MovieUpdateRequestSchema,
     PaginatedMovieResponseSchema,
     LikeDislikeMovieSchema,
-    MovieRateSchema
+    MovieRateSchema,
+    MovieCommentSchema,
+    MovieCommentResponseSchema,
+    MovieCommentListItemResponseSchema,
+    MovieCommentUpdateSchema
 )
 from database.models.movies import (
     CertificationModel,
@@ -34,7 +38,8 @@ from database.models.movies import (
     MovieModel,
     LikeDislikeEnum,
     MovieLikeDislikeModel,
-    MovieRateModel
+    MovieRateModel,
+    MovieCommentModel
 )
 from database import get_db
 from security.dependencies import require_roles
@@ -44,6 +49,10 @@ from database.models.accounts import (
 )
 
 from schemas.accounts import MessageResponseSchema
+from notifications.interfaces import EmailSenderInterface
+from config.dependencies import (
+    get_email_sender
+)
 
 
 def update_instance(instance: Any, data: BaseModel) -> None:
@@ -1448,4 +1457,198 @@ async def remove_movie_rating_service(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while deleting score to the movie."
+        ) from e
+
+
+async def create_comment_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
+    movie_id: int,
+    data: MovieCommentSchema
+) -> MessageResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id!r} not found."
+        )
+
+    if data.parent_id is not None:
+        parent_comment = await db.get(MovieCommentModel, data.parent_id)
+        if not parent_comment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Parent comment with id {data.parent_id} not found"
+            )
+
+        if parent_comment.movie_id != movie_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent comment does not belong to this movie"
+            )
+    try:
+        comment = MovieCommentModel(
+            user_id=current_user.id,
+            movie_id=movie.id,
+            parent_id=data.parent_id,
+            comment=data.comment
+        )
+        db.add(comment)
+        await db.commit()
+        await db.refresh(comment, attribute_names=["movie", "user"])
+        stmt = select(MovieCommentModel).where(
+            MovieCommentModel.id == comment.parent_id
+        ).options(
+            joinedload(MovieCommentModel.user)
+        )
+        result = await db.execute(stmt)
+        replied_to_comment = result.scalars().first()
+        if comment.parent_id is not None and replied_to_comment.user.id != current_user.id:
+            await email_sender.send_reply_to_comment_email(
+                email=replied_to_comment.user.email,
+                movie_name=comment.movie.name,
+                replier_email=comment.user.email,
+                reply_text=comment.comment
+            )
+        return MessageResponseSchema(
+            message=f"Your comment on {comment.movie.name!r} was successfully added."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while adding comment to the movie."
+        ) from e
+
+
+async def get_comments_for_movie(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    movie_id: int,
+) -> MessageResponseSchema | MovieCommentResponseSchema:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Movie with id {movie_id!r} not found."
+        )
+
+    stmt = select(MovieCommentModel).where(
+        MovieCommentModel.movie_id == movie_id
+    ).options(
+        joinedload(MovieCommentModel.user)
+    )
+    result = await db.scalars(stmt)
+    comments = result.all()
+
+    if len(comments) <= 0:
+        return MessageResponseSchema(
+            message=f"There is no comments for the movie {movie.name!r}"
+        )
+
+    comment_list = [
+        MovieCommentListItemResponseSchema(
+            id=comment.id,
+            user=comment.user.email,
+            parent_id=comment.parent_id,
+            comment=comment.comment
+        ) for comment in comments
+    ]
+
+    return MovieCommentResponseSchema(
+        movie_name=movie.name,
+        comments=comment_list
+    )
+
+
+async def delete_comment_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    comment_id: int
+) -> MessageResponseSchema:
+    stmt = select(MovieCommentModel).options(
+        joinedload(MovieCommentModel.movie)
+    ).where(
+        MovieCommentModel.id == comment_id
+    )
+    result = await db.execute(stmt)
+
+    comment = result.scalars().first()
+
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Comment with id {comment_id!r} not found."
+        )
+
+    if current_user.group.name == UserGroupEnum.USER:
+        if comment.user_id != current_user.id:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="You can delete only your comments!"
+            )
+
+    try:
+        await db.delete(comment)
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Your comment on {comment.movie.name!r} was successfully deleted."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while deleting comment to the movie."
+        ) from e
+
+
+async def update_comment_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    comment_id: int,
+    update_data: MovieCommentUpdateSchema
+) -> MessageResponseSchema:
+    stmt = select(MovieCommentModel).options(
+        joinedload(MovieCommentModel.movie)
+    ).where(
+        MovieCommentModel.id == comment_id
+    )
+    result = await db.execute(stmt)
+    comment = result.scalars().first()
+
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Comment with id {comment_id!r} not found."
+        )
+
+    if current_user.group.name == UserGroupEnum.USER:
+        if comment.user_id != current_user.id:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="You can change only your comments!"
+            )
+
+    try:
+        comment.comment = update_data.comment
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Comment on {comment.movie.name!r} was successfully updated."
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while updating comment to the movie."
         ) from e
