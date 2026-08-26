@@ -95,6 +95,11 @@ class UserModel(Base):
         back_populates="user"
     )
 
+    scores: Mapped[List["MovieRateModel"]] = relationship(
+        "MovieRateModel",
+        back_populates="user"
+    )
+
     def has_group(self, group_name: UserGroupEnum) -> bool:
         return self.group.name == group_name
 

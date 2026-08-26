@@ -4,7 +4,7 @@ import uuid as uuid_pkg
 
 from database import Base
 from sqlalchemy import Integer, String, Table, Column, ForeignKey, Uuid, Float, Text, DECIMAL, UniqueConstraint, Enum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 
 class LikeDislikeEnum(str, enum.Enum):
@@ -61,6 +61,35 @@ class MovieLikeDislikeModel(Base):
         "MovieModel",
         back_populates="likes_dislikes"
     )
+
+
+class MovieRateModel(Base):
+    __tablename__ = "movie_rates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (UniqueConstraint("user_id", "movie_id"),)
+
+    user: Mapped["UserModel"] = relationship(
+        "UserModel",
+        back_populates="scores"
+    )
+
+    movie: Mapped["MovieModel"] = relationship(
+        "MovieModel",
+        back_populates="scores"
+    )
+
+    @validates("score")
+    def validate(self, key: str, value: int) -> int:
+        if value not in range(1, 11):
+            raise ValueError(
+                "Rate score has to be in range form 1 to 10!"
+            )
+        return value
 
 
 class CertificationModel(Base):
@@ -164,5 +193,10 @@ class MovieModel(Base):
 
     likes_dislikes: Mapped[List["MovieLikeDislikeModel"]] = relationship(
         "MovieLikeDislikeModel",
+        back_populates="movie"
+    )
+
+    scores: Mapped[List["MovieRateModel"]] = relationship(
+        "MovieRateModel",
         back_populates="movie"
     )
