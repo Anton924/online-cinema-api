@@ -1,10 +1,12 @@
-from typing import Annotated, Any
+from decimal import Decimal
+from typing import Annotated, Any, Literal
 
 from fastapi import Depends, status, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from schemas.movies import (
     CertificationRequestSchema,
@@ -37,7 +39,6 @@ from database.models.accounts import (
 )
 
 from schemas.accounts import MessageResponseSchema
-from sqlalchemy.orm import joinedload
 
 
 def update_instance(instance: Any, data: BaseModel) -> None:
@@ -924,12 +925,52 @@ async def create_movie_service(
 
 async def get_movies(
     db: Annotated[AsyncSession, Depends(get_db)],
+    search: str | None,
+    year: int | None,
+    imdb_min: int | None,
+    genre_id: int | None,
+    certification_id: int | None,
+    price_min: Decimal | None,
+    price_max: Decimal | None,
+    sort_by: Literal["id", "price", "year", "imdb", "votes"] = "id",
+    order: Literal["asc", "desc"] = "asc",
     page: int = 1,
     per_page: int = 20
 ) -> PaginatedMovieResponseSchema:
     stmt = select(MovieModel).options(
         joinedload(MovieModel.certification)
-    ).offset(per_page * (page - 1)).limit(per_page)
+    ).offset(per_page * (page - 1)).limit(per_page).order_by(
+        getattr(MovieModel, sort_by).desc() if order == "desc"
+        else getattr(MovieModel, sort_by).asc()
+    )
+
+    if search is not None:
+        stmt = (
+            stmt
+            .outerjoin(MovieModel.stars)
+            .outerjoin(MovieModel.directors)
+        ).where(
+            or_(
+                MovieModel.name.ilike(f"%{search}%"),
+                MovieModel.description.ilike(f"%{search}%"),
+                StarModel.name.ilike(f"%{search}%"),
+                DirectorModel.name.ilike(f"%{search}%")
+            )
+        ).distinct()
+    if year is not None:
+        stmt = stmt.where(MovieModel.year == year)
+    if imdb_min is not None:
+        stmt = stmt.where(MovieModel.imdb >= imdb_min)
+    if genre_id is not None:
+        stmt = stmt.join(MovieModel.genres).where(
+            GenreModel.id == genre_id
+        )
+    if certification_id is not None:
+        stmt = stmt.where(MovieModel.certification_id == certification_id)
+    if price_min is not None:
+        stmt = stmt.where(MovieModel.price >= price_min)
+    if price_max is not None:
+        stmt = stmt.where(MovieModel.price <= price_max)
 
     result = await db.execute(stmt)
     movies = result.scalars().all()

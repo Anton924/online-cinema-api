@@ -1,4 +1,5 @@
-from typing import Annotated
+from decimal import Decimal
+from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -421,12 +422,30 @@ async def create_movie(
 async def list_movies(
     db: Annotated[AsyncSession, Depends(get_db)],
     page: int = 1,
-    per_page: int = 20
+    per_page: int = 20,
+    search: str | None = None,
+    year: int | None = None,
+    imdb_min: int | None = None,
+    genre_id: int | None = None,
+    certification_id: int | None = None,
+    price_min: Decimal | None = None,
+    price_max: Decimal | None = None,
+    sort_by: Literal["id", "price", "year", "imdb", "votes"] = "id",
+    order: Literal["asc", "desc"] = "asc"
 ) -> PaginatedMovieResponseSchema:
     return await get_movies(
         db=db,
         page=page,
-        per_page=per_page
+        per_page=per_page,
+        search=search,
+        year=year,
+        imdb_min=imdb_min,
+        genre_id=genre_id,
+        certification_id=certification_id,
+        price_min=price_min,
+        price_max=price_max,
+        sort_by=sort_by,
+        order=order,
     )
 
 
