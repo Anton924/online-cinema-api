@@ -398,7 +398,7 @@ async def delete_director(
 
 
 @router.post(
-    "/movies",
+    "",
     status_code=status.HTTP_201_CREATED,
     response_model=MovieDetailResponseSchema,
 )
@@ -415,7 +415,7 @@ async def create_movie(
 
 
 @router.get(
-    "/movies",
+    "",
     status_code=status.HTTP_200_OK,
     response_model=PaginatedMovieResponseSchema,
 )
@@ -450,7 +450,7 @@ async def list_movies(
 
 
 @router.get(
-    "/movies/{movie_id}",
+    "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MovieDetailResponseSchema,
 )
@@ -465,7 +465,7 @@ async def get_movie(
 
 
 @router.patch(
-    "/movies/{movie_id}",
+    "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MovieDetailResponseSchema,
 )
@@ -484,7 +484,7 @@ async def update_movie(
 
 
 @router.delete(
-    "/movies/{movie_id}",
+    "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
 )
