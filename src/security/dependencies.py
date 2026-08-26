@@ -13,6 +13,8 @@ from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from exceptions import BaseSecurityError
 
+from database.models.movies import MovieModel
+
 
 async def get_current_user(
         db: Annotated[AsyncSession, Depends(get_db)],
@@ -29,12 +31,13 @@ async def get_current_user(
 
     result = await db.execute(select(UserModel).options(
         joinedload(UserModel.group),
-        joinedload(UserModel.profile)
+        joinedload(UserModel.profile),
+        joinedload(UserModel.favorite_movies).joinedload(MovieModel.certification)
     ).where(
         UserModel.id == payload.get("user_id")
     ))
 
-    user = result.scalars().first()
+    user = result.scalars().unique().first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
