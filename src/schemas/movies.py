@@ -161,3 +161,7 @@ class PaginatedMovieResponseSchema(BaseModel):
 
 class LikeDislikeMovieSchema(BaseModel):
     like_dislike: LikeDislikeEnum = LikeDislikeEnum.LIKE
+
+
+class MovieRateSchema(BaseModel):
+    score: int = Field(ge=1, le=10)
