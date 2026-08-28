@@ -1,5 +1,5 @@
 from fastapi import FastAPI, status
-from routes import accounts_router, movies_router, carts_router
+from routes import accounts_router, movies_router, carts_router, orders_router
 
 app = FastAPI(
     title="Online Cinema API",
@@ -11,6 +11,7 @@ prefix = "/api/v1"
 app.include_router(router=accounts_router, prefix=f"{prefix}/accounts", tags=["accounts"])
 app.include_router(router=movies_router, prefix=f"{prefix}/movies", tags=["cinema"])
 app.include_router(router=carts_router, prefix=f"{prefix}/carts", tags=["cart"])
+app.include_router(router=orders_router, prefix=f"{prefix}/orders", tags=["orders"])
 
 
 @app.get("/health/", status_code=status.HTTP_200_OK)
