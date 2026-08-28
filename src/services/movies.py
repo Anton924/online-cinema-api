@@ -53,6 +53,11 @@ from notifications.interfaces import EmailSenderInterface
 from config.dependencies import (
     get_email_sender
 )
+from database.models.orders import (
+    OrderModel,
+    OrderItemModel,
+    StatusOrderEnum
+)
 
 
 def update_instance(instance: Any, data: BaseModel) -> None:
@@ -1150,7 +1155,19 @@ async def delete_movie_service(
         )
 
     try:
-        # TODO: Add exception: f"Cannot delete movie '{name}' - it has already been purchased by one or more users."
+        stmt = select(OrderModel).join(
+            OrderModel.order_items
+        ).where(
+            OrderItemModel.movie_id == movie.id,
+            OrderModel.status == StatusOrderEnum.PAID
+        )
+        result = await db.execute(stmt)
+        is_purchased = result.scalars().first()
+        if is_purchased:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete movie {movie.name!r} - it has already been purchased by one or more users."
+            )
         await db.delete(movie)
         await db.commit()
 

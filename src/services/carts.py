@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -25,6 +25,11 @@ from schemas.carts import (
 )
 from schemas.accounts import (
     MessageResponseSchema
+)
+from database.models.orders import (
+    OrderModel,
+    OrderItemModel,
+    StatusOrderEnum
 )
 
 
@@ -67,13 +72,29 @@ async def add_movie_to_cart(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This movie is already in your cart."
             )
+        stmt = select(OrderModel).join(
+            OrderModel.order_items
+        ).where(
+            OrderItemModel.movie_id == movie.id,
+            OrderModel.user_id == current_user.id,
+            or_(
+                OrderModel.status == StatusOrderEnum.PAID,
+                OrderModel.status == StatusOrderEnum.PENDING
+            )
+        )
+        result = await db.execute(stmt)
+        is_purchased = result.scalars().first()
+        if is_purchased:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"The movie {movie.name!r} has been already purchased!"
+            )
         cart_item = CartItem(
             cart_id=cart.id,
             movie_id=movie.id
         )
         db.add(cart_item)
         await db.commit()
-        # TODO: Add checking if customer has already purchased this movie
         return MessageResponseSchema(
             message=f"Movie {movie.name!r} was successfully added to your cart."
         )
