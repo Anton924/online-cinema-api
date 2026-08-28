@@ -11,7 +11,7 @@ from database.models.movies import (
     MovieModel
 )
 from database.models.accounts import UserGroup, UserGroupEnum, UserModel
-from database.models import carts  # noqa: F401
+from database.models import carts, orders  # noqa: F401
 from config.dependencies import (
     get_settings
 )
