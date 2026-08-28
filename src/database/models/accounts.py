@@ -110,6 +110,11 @@ class UserModel(Base):
         back_populates="user"
     )
 
+    orders: Mapped[List["OrderModel"]] = relationship(
+        "OrderModel",
+        back_populates="user"
+    )
+
     def has_group(self, group_name: UserGroupEnum) -> bool:
         return self.group.name == group_name
 

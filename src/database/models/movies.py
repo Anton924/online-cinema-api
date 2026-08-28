@@ -249,3 +249,8 @@ class MovieModel(Base):
         "CartItem",
         back_populates="movie"
     )
+
+    order_items: Mapped[List["OrderItemModel"]] = relationship(
+        "OrderItemModel",
+        back_populates="movie"
+    )
