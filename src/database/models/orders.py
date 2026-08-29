@@ -34,6 +34,11 @@ class OrderModel(Base):
         back_populates="order"
     )
 
+    payment: Mapped["PaymentModel"] = relationship(
+        "PaymentModel",
+        back_populates="order"
+    )
+
 
 class OrderItemModel(Base):
     __tablename__ = "order_items"
@@ -51,4 +56,9 @@ class OrderItemModel(Base):
     movie: Mapped["MovieModel"] = relationship(
         "MovieModel",
         back_populates="order_items"
+    )
+
+    payment_item: Mapped["PaymentItemModel"] = relationship(
+        "PaymentItemModel",
+        back_populates="order_item"
     )
