@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, status, Query, Request
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,12 +10,21 @@ from database.models.accounts import (
     UserModel,
     UserGroupEnum
 )
+from database.models.payments import (
+    PaymentStatus
+)
 from services.payments import (
     create_payment_session,
-    handle_stripe_webhook
+    handle_stripe_webhook,
+    get_user_payments,
+    get_payment_by_id,
+    get_all_payments
 )
 from schemas.payments import (
-    PaymentSessionResponseSchema
+    PaymentSessionResponseSchema,
+    PaymentListItemResponseSchema,
+    PaymentResponseSchema,
+    PaymentAdminListItemResponseSchema
 )
 from schemas.accounts import (
     MessageResponseSchema
@@ -23,6 +34,32 @@ from config.dependencies import get_payment_gateway, get_settings
 from config.settings import BaseAppSettings
 
 router = APIRouter()
+
+
+@router.get(
+    "/admin",
+    status_code=status.HTTP_200_OK,
+    response_model=list[PaymentAdminListItemResponseSchema]
+)
+async def list_all_payments(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    payment_status: PaymentStatus | None = None,
+    user_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> list[PaymentAdminListItemResponseSchema]:
+    return await get_all_payments(
+        db=db,
+        current_user=current_user,
+        payment_status=payment_status,
+        user_id=user_id,
+        date_from=date_from,
+        date_to=date_to
+    )
 
 
 @router.post(
@@ -69,6 +106,24 @@ async def payment_cancel() -> dict:
     return {
         "status": "cancelled",
     }
+
+
+@router.get(
+    "",
+    status_code=status.HTTP_200_OK,
+    response_model=list[PaymentListItemResponseSchema]
+)
+async def list_payments(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+) -> list[PaymentListItemResponseSchema]:
+    return await get_user_payments(
+        db=db,
+        current_user=current_user
+    )
 
 
 @router.post(
@@ -145,4 +200,46 @@ async def create_payment(
         current_user=current_user,
         settings=settings,
         order_id=order_id
+    )
+
+
+@router.get(
+    "/{payment_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=PaymentResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No payment with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Payment with id 1 not found."
+                    }
+                }
+            },
+        },
+        403: {
+            "description": "Forbidden - You can view only your own payments.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "You can view only your own payments!"
+                    }
+                }
+            },
+        },
+    }
+)
+async def view_payment(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    payment_id: int
+) -> PaymentResponseSchema:
+    return await get_payment_by_id(
+        db=db,
+        current_user=current_user,
+        payment_id=payment_id
     )

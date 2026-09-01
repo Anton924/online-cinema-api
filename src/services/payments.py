@@ -1,3 +1,4 @@
+from datetime import datetime, date, time
 from typing import Annotated
 
 import stripe
@@ -5,13 +6,16 @@ from fastapi import Depends, HTTPException, status, Request
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from database import get_db
 from security.dependencies import require_roles
 from database.models.accounts import (
     UserModel,
     UserGroupEnum
+)
+from database.models.movies import (
+    MovieModel
 )
 from database.models.payments import (
     PaymentModel,
@@ -22,7 +26,11 @@ from schemas.accounts import (
     MessageResponseSchema
 )
 from schemas.payments import (
-    PaymentSessionResponseSchema
+    PaymentSessionResponseSchema,
+    PaymentListItemResponseSchema,
+    PaymentItemResponseSchema,
+    PaymentResponseSchema,
+    PaymentAdminListItemResponseSchema
 )
 from database.models.orders import (
     OrderModel,
@@ -177,3 +185,130 @@ async def handle_stripe_webhook(
     return MessageResponseSchema(
         message="Event ignored."
     )
+
+
+async def get_user_payments(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ]
+) -> list[PaymentListItemResponseSchema]:
+    stmt = select(PaymentModel).options(
+        selectinload(PaymentModel.payment_items)
+    ).where(
+        PaymentModel.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    payments = result.scalars().all()
+
+    payments_list = []
+
+    for payment in payments:
+        payments_list.append(
+            PaymentListItemResponseSchema(
+                id=payment.id,
+                status=payment.status,
+                order_id=payment.order_id,
+                items_count=len(payment.payment_items)
+            )
+        )
+
+    return payments_list
+
+
+async def get_payment_by_id(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    payment_id: int
+) -> PaymentResponseSchema:
+    stmt = select(PaymentModel).options(
+        selectinload(PaymentModel.payment_items)
+        .joinedload(PaymentItemModel.order_item)
+        .joinedload(OrderItemModel.movie)
+        .joinedload(MovieModel.certification)
+    ).where(
+        PaymentModel.id == payment_id
+    )
+    result = await db.execute(stmt)
+    payment = result.scalars().first()
+
+    if not payment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Payment with id {payment_id} not found."
+        )
+
+    if payment.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can view only your own payments!"
+        )
+
+    payments_items_list = [
+        PaymentItemResponseSchema(
+            id=payment_item.id,
+            movie=payment_item.order_item.movie,
+            price_at_payment=payment_item.price_at_payment
+        )
+        for payment_item in payment.payment_items
+    ]
+
+    return PaymentResponseSchema(
+        id=payment.id,
+        status=payment.status,
+        external_payment_id=payment.external_payment_id,
+        order_id=payment.order_id,
+        items=payments_items_list
+    )
+
+
+async def get_all_payments(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    payment_status: PaymentStatus | None = None,
+    user_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> list[PaymentAdminListItemResponseSchema]:
+    stmt = select(PaymentModel).options(
+        joinedload(PaymentModel.user),
+        selectinload(PaymentModel.payment_items)
+    )
+    if payment_status is not None:
+        stmt = stmt.where(
+            PaymentModel.status == payment_status
+        )
+    if user_id is not None:
+        stmt = stmt.where(
+            PaymentModel.user_id == user_id
+        )
+    if date_from is not None:
+        stmt = stmt.where(
+            PaymentModel.created_at >= date_from
+        )
+    if date_to is not None:
+        stmt = stmt.where(
+            PaymentModel.created_at <= datetime.combine(date_to, time.max)
+        )
+
+    result = await db.execute(stmt)
+    payments = result.scalars().unique().all()
+    payments_list = [
+        PaymentAdminListItemResponseSchema(
+            id=payment.id,
+            status=payment.status,
+            order_id=payment.order_id,
+            user_email=payment.user.email,
+            items_count=len(payment.payment_items)
+        )
+        for payment in payments
+    ]
+
+    return payments_list
