@@ -26,6 +26,11 @@ class BaseAppSettings(BaseSettings):
     EMAIL_USE_TLS: bool = True
     MAILHOG_API_PORT: int = 8025
 
+    STRIPE_SECRET_KEY: str = "sk_test_your_key_here"
+    STRIPE_WEBHOOK_SECRET: str = "whsec_your_secret_here"
+    STRIPE_SUCCESS_URL: str = "http://localhost:8000/api/v1/payments/success?session_id={CHECKOUT_SESSION_ID}"
+    STRIPE_CANCEL_URL: str = "http://localhost:8000/api/v1/payments/canceled"
+
 
 class Settings(BaseAppSettings):
     ADMIN_EMAIL: str = "admin@admin.com"
