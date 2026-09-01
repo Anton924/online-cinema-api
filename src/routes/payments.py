@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query, Request
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,16 +9,66 @@ from database.models.accounts import (
     UserGroupEnum
 )
 from services.payments import (
-    create_payment_session
+    create_payment_session,
+    handle_stripe_webhook
 )
 from schemas.payments import (
     PaymentSessionResponseSchema
+)
+from schemas.accounts import (
+    MessageResponseSchema
 )
 from payments.interfaces import PaymentGatewayInterface
 from config.dependencies import get_payment_gateway, get_settings
 from config.settings import BaseAppSettings
 
 router = APIRouter()
+
+
+@router.post(
+    "/webhook",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        400: {
+            "description": "Bad Request - The Stripe webhook signature could not be verified.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Invalid Stripe signature."
+                    }
+                }
+            },
+        },
+    }
+)
+async def stripe_webhook(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    payment_gateway: Annotated[PaymentGatewayInterface, Depends(get_payment_gateway)],
+    request: Request
+) -> MessageResponseSchema:
+    return await handle_stripe_webhook(
+        db=db,
+        payment_gateway=payment_gateway,
+        request=request
+    )
+
+
+@router.get("/success")
+async def payment_success(
+    session_id: str = Query(...)
+) -> dict:
+    return {
+        "status": "success",
+        "session_id": session_id
+    }
+
+
+@router.get("/cancel")
+async def payment_cancel() -> dict:
+    return {
+        "status": "cancelled",
+    }
 
 
 @router.post(
