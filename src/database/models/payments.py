@@ -22,6 +22,7 @@ class PaymentModel(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     status: Mapped[str] = mapped_column(Enum(PaymentStatus), nullable=False)
     external_payment_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    payment_intent_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
