@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, status, Query, Request
 from typing import Annotated
@@ -18,7 +19,8 @@ from services.payments import (
     handle_stripe_webhook,
     get_user_payments,
     get_payment_by_id,
-    get_all_payments
+    get_all_payments,
+    refund_payment_service
 )
 from schemas.payments import (
     PaymentSessionResponseSchema,
@@ -242,4 +244,60 @@ async def view_payment(
         db=db,
         current_user=current_user,
         payment_id=payment_id
+    )
+
+
+@router.post(
+    "/{payment_id}/refund",
+    status_code=status.HTTP_200_OK,
+    response_model=MessageResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No payment with this id exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Payment with id 1 not found."
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Conflict - Only successful payments can be refunded.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Only successful payments can be refunded."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while processing the refund.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while processing the refund."
+                    }
+                }
+            },
+        },
+    }
+)
+async def refund_payment(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    payment_gateway: Annotated[PaymentGatewayInterface, Depends(get_payment_gateway)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    payment_id: int,
+    amount: Decimal | None = None
+) -> MessageResponseSchema:
+    return await refund_payment_service(
+        db=db,
+        payment_gateway=payment_gateway,
+        current_user=current_user,
+        payment_id=payment_id,
+        amount=amount
     )

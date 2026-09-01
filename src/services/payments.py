@@ -1,4 +1,5 @@
 from datetime import datetime, date, time
+from decimal import Decimal
 from typing import Annotated
 
 import stripe
@@ -312,3 +313,59 @@ async def get_all_payments(
     ]
 
     return payments_list
+
+
+async def refund_payment_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    payment_gateway: Annotated[PaymentGatewayInterface, Depends(get_payment_gateway)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    payment_id: int,
+    amount: Decimal | None = None
+) -> MessageResponseSchema:
+    stmt = select(PaymentModel).options(
+        joinedload(PaymentModel.order)
+    ).where(PaymentModel.id == payment_id)
+
+    result = await db.execute(stmt)
+    payment = result.scalars().unique().first()
+
+    if not payment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Payment with id {payment_id} not found."
+        )
+    if payment.status != PaymentStatus.SUCCESSFUL:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only successful payments can be refunded."
+        )
+    payload = {
+        "payment_intent_id": payment.payment_intent_id
+    }
+    if amount is not None:
+        payload["amount"] = int(amount * 100)
+    try:
+        await payment_gateway.create_refund(
+            payload=payload
+        )
+        payment.status = PaymentStatus.REFUNDED
+        payment.order.status = StatusOrderEnum.CANCELED
+        await db.commit()
+        return MessageResponseSchema(
+            message=f"Payment #{payment.id} was successfully refunded."
+        )
+    except stripe.error.StripeError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing the refund."
+        ) from e
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing the refund"
+        ) from e
