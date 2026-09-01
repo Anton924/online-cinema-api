@@ -8,6 +8,8 @@ from security.token_manager import JWTAuthManager
 from notifications.emails import EmailSender
 from notifications.interfaces import EmailSenderInterface
 from security.interfaces import JWTAuthManagerInterface
+from payments.interfaces import PaymentGatewayInterface
+from payments.stripe_gateway import StripeGateway
 
 
 def get_settings() -> BaseAppSettings:
@@ -40,4 +42,13 @@ def get_email_sender(
         password_email_template_name=settings.PASSWORD_RESET_TEMPLATE_NAME,
         password_complete_email_template_name=settings.PASSWORD_RESET_COMPLETE_TEMPLATE_NAME,
         reply_to_comment_email_template_name=settings.REPLY_TO_COMMENT_TEMPLATE_NAME
+    )
+
+
+def get_payment_gateway(
+    settings: Annotated[BaseAppSettings, Depends(get_settings)]
+) -> PaymentGatewayInterface:
+    return StripeGateway(
+        api_key=settings.STRIPE_SECRET_KEY,
+        webhook_secret=settings.STRIPE_WEBHOOK_SECRET
     )
