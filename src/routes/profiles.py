@@ -12,7 +12,8 @@ from services.profiles import (
     create_user_profile,
     get_own_profile,
     update_user_profile,
-    update_user_avatar
+    update_user_avatar,
+    delete_user_avatar
 )
 from schemas.profiles import (
     UserProfileResponseSchema,
@@ -222,4 +223,68 @@ async def update_avatar(
         current_user=current_user,
         s3_client=s3_client,
         update_data=update_data
+    )
+
+
+@router.delete(
+    "/me/avatar",
+    status_code=status.HTTP_200_OK,
+    response_model=UserProfileResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No profile exists for this user, or the profile has no avatar.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "profile_not_found": {
+                            "summary": "Profile Not Found",
+                            "value": {
+                                "detail": "Profile not found."
+                            }
+                        },
+                        "avatar_not_found": {
+                            "summary": "Avatar Not Found",
+                            "value": {
+                                "detail": "Avatar not found."
+                            }
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while deleting the avatar.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "avatar_delete_failed": {
+                            "summary": "Avatar Delete Failed",
+                            "value": {
+                                "detail": "Failed to delete avatar. Please try again later."
+                            }
+                        },
+                        "db_delete_failed": {
+                            "summary": "Database Update Failed",
+                            "value": {
+                                "detail": "An error occurred while deleting the avatar."
+                            }
+                        },
+                    }
+                }
+            },
+        },
+    }
+)
+async def delete_avatar(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)]
+) -> UserProfileResponseSchema:
+    return await delete_user_avatar(
+        db=db,
+        current_user=current_user,
+        s3_client=s3_client
     )

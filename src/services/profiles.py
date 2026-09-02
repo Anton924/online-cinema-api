@@ -220,3 +220,50 @@ async def update_user_avatar(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while saving the avatar. Please try again later."
         ) from e
+
+
+async def delete_user_avatar(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)]
+) -> UserProfileResponseSchema:
+    if not current_user.profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found."
+        )
+    if current_user.profile.avatar is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Avatar not found."
+        )
+    try:
+        await s3_client.delete_file(file_name=current_user.profile.avatar)
+        current_user.profile.avatar = None
+        await db.commit()
+        await db.refresh(current_user.profile)
+        avatar_url = None
+        return UserProfileResponseSchema(
+            id=current_user.profile.id,
+            first_name=current_user.profile.first_name,
+            last_name=current_user.profile.last_name,
+            avatar=avatar_url,
+            gender=current_user.profile.gender,
+            date_of_birth=current_user.profile.date_of_birth,
+            info=current_user.profile.info,
+            user_id=current_user.profile.user_id
+        )
+    except (S3FileUploadError, S3ConnectionError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete avatar. Please try again later."
+        ) from e
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while deleting the avatar."
+        ) from e
