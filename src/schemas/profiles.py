@@ -1,61 +1,79 @@
 from datetime import date
 
-from fastapi import UploadFile, Form, File
-from pydantic import BaseModel, field_validator
+from fastapi import UploadFile, Form, File, HTTPException, status
+from pydantic import BaseModel, field_validator, ValidationError
 
 from validation.profile import validate_image, validate_gender, validate_birth_date, validate_name
+
+from database.models.accounts import GenderEnum
 
 
 class UserProfileRequestSchema(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     avatar: UploadFile | None = None
-    gender: str | None = None
+    gender: GenderEnum | None = None
     date_of_birth: date | None = None
     info: str | None = None
 
     @classmethod
     def from_form(
         cls,
-        first_name: str = Form(),
-        last_name: str = Form(),
-        avatar: UploadFile = File(),
-        gender: str = Form(),
-        date_of_birth: date = Form(),
-        info: str = Form(),
+        first_name: str | None = Form(None),
+        last_name: str | None = Form(None),
+        avatar: UploadFile | None | str = File(None),
+        gender: GenderEnum | None = Form(None),
+        date_of_birth: date | None | str = Form(None),
+        info: str | None = Form(None),
     ) -> "UserProfileRequestSchema":
-        return cls(
-            first_name=first_name,
-            last_name=last_name,
-            avatar=avatar,
-            gender=gender,
-            date_of_birth=date_of_birth,
-            info=info
-        )
 
-    @field_validator("first_name", "last_name")
+        try:
+            if isinstance(avatar, str):
+                avatar = None
+            return cls(
+                first_name=first_name,
+                last_name=last_name,
+                avatar=avatar,
+                gender=gender,
+                date_of_birth=date_of_birth,
+                info=info
+            )
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=[
+                    {"field": error["loc"][-1], "message": error["msg"]}
+                    for error in e.errors()
+                ]
+            ) from e
+
+    @field_validator("first_name", "last_name", mode="before")
     @classmethod
     def validate_name(cls, value: str) -> str | None:
-        validate_name(value)
-        return value
+        if not value or value is None:
+            return None
+        return validate_name(value)
 
     @field_validator("avatar")
     @classmethod
     def validate_avatar(cls, value: UploadFile) -> UploadFile | None:
-        validate_image(value)
-        return value
+        if not value or value is None:
+            return None
+        return validate_image(value)
 
-    @field_validator("gender")
+    @field_validator("gender", mode="before")
     @classmethod
-    def validate_gender(cls, value: str) -> str | None:
-        validate_gender(value)
-        return value
+    def validate_gender(cls, value: str) -> GenderEnum | None:
+        if not value or value is None:
+            return None
+        return validate_gender(value)
 
-    @field_validator("date_of_birth")
+    @field_validator("date_of_birth", mode="before")
     @classmethod
     def validate_date_of_birth(cls, value: date) -> date | None:
-        validate_birth_date(value)
-        return value
+        if not value or value is None:
+            return None
+        return validate_birth_date(value)
 
 
 class UserProfileResponseSchema(BaseModel):
@@ -63,7 +81,7 @@ class UserProfileResponseSchema(BaseModel):
     first_name: str | None
     last_name: str | None
     avatar: str | None
-    gender: str | None
+    gender: GenderEnum | None
     date_of_birth: date | None
     info: str | None
     user_id: int | None
