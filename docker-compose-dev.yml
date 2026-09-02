@@ -49,6 +49,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     volumes:
       - ./src:/usr/src/fastapi
     networks:
@@ -86,6 +88,40 @@ services:
       - PYTHONPATH=/usr/src/fastapi
     networks:
       - cinema_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio-cinema
+    command: server --console-address ":9001" /data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    env_file:
+      - .env
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cinema_network
+
+  minio_mc:
+    build:
+      context: .
+      dockerfile: docker/minio_cm/Dockerfile
+    container_name: minio_mc_cinema
+    command: ["bin/sh", "-c", "/commands/setup_minio.sh"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - cinema_network
+
   redis:
     image: redis:latest
     environment:
@@ -135,6 +171,8 @@ volumes:
   pgadmin_cinema_data:
     driver: local
   redis_data:
+    driver: local
+  minio_data:
     driver: local
 
 networks:
