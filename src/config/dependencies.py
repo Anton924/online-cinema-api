@@ -10,6 +10,8 @@ from notifications.interfaces import EmailSenderInterface
 from security.interfaces import JWTAuthManagerInterface
 from payments.interfaces import PaymentGatewayInterface
 from payments.stripe_gateway import StripeGateway
+from storages.interfaces import S3StorageInterface
+from storages.s3 import S3StorageClient
 
 
 def get_settings() -> BaseAppSettings:
@@ -51,4 +53,15 @@ def get_payment_gateway(
     return StripeGateway(
         api_key=settings.STRIPE_SECRET_KEY,
         webhook_secret=settings.STRIPE_WEBHOOK_SECRET
+    )
+
+
+def get_s3_client(
+        settings: Annotated[BaseAppSettings, Depends(get_settings)]
+) -> S3StorageInterface:
+    return S3StorageClient(
+        endpoint_url=settings.s3_storage_endpoint,
+        access_key=settings.MINIO_ROOT_USER,
+        secret_key=settings.MINIO_ROOT_PASSWORD,
+        bucket_name=settings.MINIO_STORAGE
     )
