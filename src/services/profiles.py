@@ -13,7 +13,8 @@ from database.models.accounts import (
 )
 from schemas.profiles import (
     UserProfileResponseSchema,
-    UserProfileRequestSchema
+    UserProfileRequestSchema,
+    UserProfileRequestUpdateSchema
 )
 from storages.interfaces import S3StorageInterface
 from exceptions import S3FileUploadError, S3ConnectionError
@@ -109,6 +110,50 @@ async def get_own_profile(
         )
     else:
         avatar_url = None
+
+    return UserProfileResponseSchema(
+        id=current_user.profile.id,
+        first_name=current_user.profile.first_name,
+        last_name=current_user.profile.last_name,
+        avatar=avatar_url,
+        gender=current_user.profile.gender,
+        date_of_birth=current_user.profile.date_of_birth,
+        info=current_user.profile.info,
+        user_id=current_user.profile.user_id
+    )
+
+
+async def update_user_profile(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)],
+    update_data: UserProfileRequestUpdateSchema,
+) -> UserProfileResponseSchema:
+    if not current_user.profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found."
+        )
+    try:
+        data = update_data.model_dump(exclude_unset=True)
+        for key, value in data.items():
+            if value is not None:
+                setattr(current_user.profile, key, value)
+        await db.commit()
+        await db.refresh(current_user.profile)
+        if current_user.profile.avatar:
+            avatar_url = await s3_client.get_file_url(file_name=current_user.profile.avatar)
+        else:
+            avatar_url = None
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while updating the profile."
+        ) from e
 
     return UserProfileResponseSchema(
         id=current_user.profile.id,

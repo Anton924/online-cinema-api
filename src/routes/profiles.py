@@ -10,11 +10,13 @@ from database.models.accounts import (
 )
 from services.profiles import (
     create_user_profile,
-    get_own_profile
+    get_own_profile,
+    update_user_profile
 )
 from schemas.profiles import (
     UserProfileResponseSchema,
-    UserProfileRequestSchema
+    UserProfileRequestSchema,
+    UserProfileRequestUpdateSchema
 )
 from config.dependencies import get_s3_client
 from storages.interfaces import S3StorageInterface
@@ -116,4 +118,48 @@ async def read_own_profile(
     return await get_own_profile(
         current_user=current_user,
         s3_client=s3_client
+    )
+
+
+@router.patch(
+    "/me",
+    status_code=status.HTTP_200_OK,
+    response_model=UserProfileResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No profile exists for this user yet.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Profile not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while updating the profile.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "An error occurred while updating the profile."
+                    }
+                }
+            },
+        },
+    }
+)
+async def update_profile(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)],
+    update_data: UserProfileRequestUpdateSchema
+) -> UserProfileResponseSchema:
+    return await update_user_profile(
+        db=db,
+        current_user=current_user,
+        s3_client=s3_client,
+        update_data=update_data
     )
