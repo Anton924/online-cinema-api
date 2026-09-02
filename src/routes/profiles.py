@@ -9,7 +9,8 @@ from database.models.accounts import (
     UserGroupEnum
 )
 from services.profiles import (
-    create_user_profile
+    create_user_profile,
+    get_own_profile
 )
 from schemas.profiles import (
     UserProfileResponseSchema,
@@ -85,4 +86,34 @@ async def create_profile(
         current_user=current_user,
         s3_client=s3_client,
         profile_data=profile_data
+    )
+
+
+@router.get(
+    "/me",
+    status_code=status.HTTP_200_OK,
+    response_model=UserProfileResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No profile exists for this user yet.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Profile not found."
+                    }
+                }
+            },
+        },
+    }
+)
+async def read_own_profile(
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)]
+) -> UserProfileResponseSchema:
+    return await get_own_profile(
+        current_user=current_user,
+        s3_client=s3_client
     )
