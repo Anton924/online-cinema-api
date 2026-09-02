@@ -97,3 +97,21 @@ class UserProfileRequestUpdateSchema(BaseModel):
     gender: GenderEnum | None = None
     date_of_birth: date | None = None
     info: str | None = None
+
+
+class UserProfileRequestUpdateAvatarSchema(BaseModel):
+    avatar: UploadFile
+
+    @classmethod
+    def from_form(
+            cls,
+            avatar: UploadFile
+    ) -> "UserProfileRequestUpdateAvatarSchema":
+        return cls(
+            avatar=avatar
+        )
+
+    @field_validator("avatar")
+    @classmethod
+    def validate_avatar(cls, value: UploadFile) -> UploadFile:
+        return validate_image(value)
