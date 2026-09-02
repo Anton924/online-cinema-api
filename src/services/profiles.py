@@ -14,7 +14,8 @@ from database.models.accounts import (
 from schemas.profiles import (
     UserProfileResponseSchema,
     UserProfileRequestSchema,
-    UserProfileRequestUpdateSchema
+    UserProfileRequestUpdateSchema,
+    UserProfileRequestUpdateAvatarSchema
 )
 from storages.interfaces import S3StorageInterface
 from exceptions import S3FileUploadError, S3ConnectionError
@@ -165,3 +166,57 @@ async def update_user_profile(
         info=current_user.profile.info,
         user_id=current_user.profile.user_id
     )
+
+
+async def update_user_avatar(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)],
+    update_data: Annotated[
+        UserProfileRequestUpdateAvatarSchema,
+        Depends(UserProfileRequestUpdateAvatarSchema.from_form)
+    ]
+) -> UserProfileResponseSchema:
+    if not current_user.profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found."
+        )
+    try:
+        avatar_bytes = await update_data.avatar.read()
+        extension = update_data.avatar.content_type.split("/")[-1]
+        avatar_key = f"avatar/{current_user.id}.{extension}"
+        await s3_client.upload_file(
+            file_name=avatar_key,
+            file_data=avatar_bytes,
+            content_type=update_data.avatar.content_type
+        )
+        current_user.profile.avatar = avatar_key
+        avatar_url = await s3_client.get_file_url(file_name=avatar_key)
+        await db.commit()
+        await db.refresh(current_user.profile)
+
+        return UserProfileResponseSchema(
+            id=current_user.profile.id,
+            first_name=current_user.profile.first_name,
+            last_name=current_user.profile.last_name,
+            avatar=avatar_url,
+            gender=current_user.profile.gender,
+            date_of_birth=current_user.profile.date_of_birth,
+            info=current_user.profile.info,
+            user_id=current_user.profile.user_id
+        )
+    except (S3FileUploadError, S3ConnectionError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload avatar. Please try again later."
+        ) from e
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while saving the avatar. Please try again later."
+        ) from e

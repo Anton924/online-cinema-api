@@ -11,12 +11,14 @@ from database.models.accounts import (
 from services.profiles import (
     create_user_profile,
     get_own_profile,
-    update_user_profile
+    update_user_profile,
+    update_user_avatar
 )
 from schemas.profiles import (
     UserProfileResponseSchema,
     UserProfileRequestSchema,
-    UserProfileRequestUpdateSchema
+    UserProfileRequestUpdateSchema,
+    UserProfileRequestUpdateAvatarSchema
 )
 from config.dependencies import get_s3_client
 from storages.interfaces import S3StorageInterface
@@ -158,6 +160,64 @@ async def update_profile(
     update_data: UserProfileRequestUpdateSchema
 ) -> UserProfileResponseSchema:
     return await update_user_profile(
+        db=db,
+        current_user=current_user,
+        s3_client=s3_client,
+        update_data=update_data
+    )
+
+
+@router.patch(
+    "/me/avatar",
+    status_code=status.HTTP_200_OK,
+    response_model=UserProfileResponseSchema,
+    responses={
+        404: {
+            "description": "Not Found - No profile exists for this user yet.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Profile not found."
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while uploading or saving the avatar.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "avatar_upload_failed": {
+                            "summary": "Avatar Upload Failed",
+                            "value": {
+                                "detail": "Failed to upload avatar. Please try again later."
+                            }
+                        },
+                        "avatar_save_failed": {
+                            "summary": "Avatar Save Failed",
+                            "value": {
+                                "detail": "An error occurred while saving the avatar. Please try again later."
+                            }
+                        },
+                    }
+                }
+            },
+        },
+    }
+)
+async def update_avatar(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[
+        UserModel,
+        Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
+    ],
+    s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)],
+    update_data: Annotated[
+        UserProfileRequestUpdateAvatarSchema,
+        Depends(UserProfileRequestUpdateAvatarSchema.from_form)
+    ]
+) -> UserProfileResponseSchema:
+    return await update_user_avatar(
         db=db,
         current_user=current_user,
         s3_client=s3_client,
