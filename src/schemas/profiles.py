@@ -89,3 +89,11 @@ class UserProfileResponseSchema(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+
+class UserProfileRequestUpdateSchema(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    gender: GenderEnum | None = None
+    date_of_birth: date | None = None
+    info: str | None = None
