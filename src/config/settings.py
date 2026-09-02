@@ -31,6 +31,16 @@ class BaseAppSettings(BaseSettings):
     STRIPE_SUCCESS_URL: str = "http://localhost:8000/api/v1/payments/success?session_id={CHECKOUT_SESSION_ID}"
     STRIPE_CANCEL_URL: str = "http://localhost:8000/api/v1/payments/canceled"
 
+    MINIO_HOST: str = "minio-cinema"
+    MINIO_PORT: int = 9000
+    MINIO_ROOT_USER: str = "minioadmin"
+    MINIO_ROOT_PASSWORD: str = "some_password"
+    MINIO_STORAGE: str = "cinema-storage"
+
+    @property
+    def s3_storage_endpoint(self) -> str:
+        return f"http://{self.MINIO_HOST}:{self.MINIO_PORT}"
+
 
 class Settings(BaseAppSettings):
     ADMIN_EMAIL: str = "admin@admin.com"
