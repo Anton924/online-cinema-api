@@ -1,7 +1,7 @@
 from datetime import date
 
 from fastapi import UploadFile, Form, File, HTTPException, status
-from pydantic import BaseModel, field_validator, ValidationError
+from pydantic import BaseModel, Field, field_validator, ValidationError
 
 from validation.profile import validate_image, validate_gender, validate_birth_date, validate_name
 
@@ -19,12 +19,12 @@ class UserProfileRequestSchema(BaseModel):
     @classmethod
     def from_form(
         cls,
-        first_name: str | None = Form(None),
-        last_name: str | None = Form(None),
+        first_name: str | None = Form(None, examples=["John"]),
+        last_name: str | None = Form(None, examples=["Doe"]),
         avatar: UploadFile | None | str = File(None),
-        gender: GenderEnum | None = Form(None),
-        date_of_birth: date | None | str = Form(None),
-        info: str | None = Form(None),
+        gender: GenderEnum | None = Form(None, examples=["male"]),
+        date_of_birth: date | None | str = Form(None, examples=["1990-05-20"]),
+        info: str | None = Form(None, examples=["Movie enthusiast and part-time critic."]),
     ) -> "UserProfileRequestSchema":
 
         try:
@@ -92,11 +92,11 @@ class UserProfileResponseSchema(BaseModel):
 
 
 class UserProfileRequestUpdateSchema(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    gender: GenderEnum | None = None
-    date_of_birth: date | None = None
-    info: str | None = None
+    first_name: str | None = Field(default=None, examples=["John"])
+    last_name: str | None = Field(default=None, examples=["Doe"])
+    gender: GenderEnum | None = Field(default=None, examples=["male"])
+    date_of_birth: date | None = Field(default=None, examples=["1990-05-20"])
+    info: str | None = Field(default=None, examples=["Movie enthusiast and part-time critic."])
 
 
 class UserProfileRequestUpdateAvatarSchema(BaseModel):
