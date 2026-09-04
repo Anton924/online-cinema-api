@@ -12,8 +12,8 @@ class CertificationRequestSchema(BaseModel):
 
 
 class CertificationResponseSchema(BaseModel):
-    id: int
-    name: str
+    id: int = Field(examples=[1])
+    name: str = Field(examples=["PG-13"])
 
     model_config = {
         "from_attributes": True
@@ -25,8 +25,8 @@ class GenreRequestSchema(BaseModel):
 
 
 class GenreResponseSchema(BaseModel):
-    id: int
-    name: str
+    id: int = Field(examples=[1])
+    name: str = Field(examples=["Action"])
 
     model_config = {
         "from_attributes": True
@@ -34,9 +34,9 @@ class GenreResponseSchema(BaseModel):
 
 
 class GenreWithMovieCountResponseSchema(BaseModel):
-    id: int
-    name: str
-    movie_count: int
+    id: int = Field(examples=[1])
+    name: str = Field(examples=["Action"])
+    movie_count: int = Field(examples=[42])
 
 
 class StarRequestSchema(BaseModel):
@@ -44,8 +44,8 @@ class StarRequestSchema(BaseModel):
 
 
 class StarResponseSchema(BaseModel):
-    id: int
-    name: str
+    id: int = Field(examples=[1])
+    name: str = Field(examples=["Tom Hardy"])
 
     model_config = {
         "from_attributes": True
@@ -57,8 +57,8 @@ class DirectorRequestSchema(BaseModel):
 
 
 class DirectorResponseSchema(BaseModel):
-    id: int
-    name: str
+    id: int = Field(examples=[1])
+    name: str = Field(examples=["Christopher Nolan"])
 
     model_config = {
         "from_attributes": True
@@ -66,13 +66,13 @@ class DirectorResponseSchema(BaseModel):
 
 
 class MovieListItemResponseSchema(BaseModel):
-    id: int
-    uuid: UUID
-    name: str
-    year: int
-    time: int
-    imdb: float
-    price: Decimal
+    id: int = Field(examples=[1])
+    uuid: UUID = Field(examples=["3fa85f64-5717-4562-b3fc-2c963f66afa6"])
+    name: str = Field(examples=["Inception"])
+    year: int = Field(examples=[2010])
+    time: int = Field(examples=[148])
+    imdb: float = Field(examples=[8.8])
+    price: Decimal = Field(examples=[9.99])
     certification: CertificationResponseSchema
 
     model_config = {
@@ -140,17 +140,19 @@ class MovieUpdateRequestSchema(BaseModel):
 
 
 class MovieDetailResponseSchema(BaseModel):
-    id: int
-    uuid: UUID
-    name: str
-    year: int
-    time: int
-    imdb: float
-    price: Decimal
-    votes: int
-    meta_score: float | None
-    gross: float | None
-    description: str
+    id: int = Field(examples=[1])
+    uuid: UUID = Field(examples=["3fa85f64-5717-4562-b3fc-2c963f66afa6"])
+    name: str = Field(examples=["Inception"])
+    year: int = Field(examples=[2010])
+    time: int = Field(examples=[148])
+    imdb: float = Field(examples=[8.8])
+    price: Decimal = Field(examples=[9.99])
+    votes: int = Field(examples=[2400000])
+    meta_score: float | None = Field(examples=[74.0])
+    gross: float | None = Field(examples=[292576195.0])
+    description: str = Field(
+        examples=["A thief who steals corporate secrets through dream-sharing technology."]
+    )
     genres: list[GenreResponseSchema]
     stars: list[StarResponseSchema]
     directors: list[DirectorResponseSchema]
@@ -163,10 +165,10 @@ class MovieDetailResponseSchema(BaseModel):
 
 class PaginatedMovieResponseSchema(BaseModel):
     items: list[MovieListItemResponseSchema]
-    total: int
-    page: int
-    per_page: int
-    total_pages: int
+    total: int = Field(examples=[1])
+    page: int = Field(examples=[1])
+    per_page: int = Field(examples=[20])
+    total_pages: int = Field(examples=[1])
 
 
 class LikeDislikeMovieSchema(BaseModel):
@@ -183,14 +185,14 @@ class MovieCommentSchema(BaseModel):
 
 
 class MovieCommentListItemResponseSchema(BaseModel):
-    id: int
-    user: str
+    id: int = Field(examples=[1])
+    user: str = Field(examples=["user@example.com"])
     parent_id: int | None = Field(default=None, examples=[None])
-    comment: str
+    comment: str = Field(examples=["Great movie!"])
 
 
 class MovieCommentResponseSchema(BaseModel):
-    movie_name: str
+    movie_name: str = Field(examples=["Inception"])
     comments: list[MovieCommentListItemResponseSchema] | None
 
 
