@@ -77,14 +77,14 @@ class UserProfileRequestSchema(BaseModel):
 
 
 class UserProfileResponseSchema(BaseModel):
-    id: int | None
-    first_name: str | None
-    last_name: str | None
-    avatar: str | None
-    gender: GenderEnum | None
-    date_of_birth: date | None
-    info: str | None
-    user_id: int | None
+    id: int | None = Field(examples=[1])
+    first_name: str | None = Field(examples=["John"])
+    last_name: str | None = Field(examples=["Doe"])
+    avatar: str | None = Field(examples=["https://minio.example.com/cinema-storage/avatars/1.jpg"])
+    gender: GenderEnum | None = Field(examples=["male"])
+    date_of_birth: date | None = Field(examples=["1990-05-20"])
+    info: str | None = Field(examples=["Movie enthusiast and part-time critic."])
+    user_id: int | None = Field(examples=[1])
 
     model_config = {
         "from_attributes": True
