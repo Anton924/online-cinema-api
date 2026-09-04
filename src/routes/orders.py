@@ -72,6 +72,7 @@ async def create_order(
         Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
     ]
 ) -> OrderResponseSchema:
+    """Create an order from the current user's cart, fixing prices and excluding already purchased movies."""
     return await create_order_from_cart(
         db=db,
         current_user=current_user
@@ -90,6 +91,7 @@ async def list_orders(
         Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
     ]
 ) -> list[OrderListItemResponseSchema]:
+    """Return the order history of the currently authenticated user."""
     return await get_user_orders(
         db=db,
         current_user=current_user
@@ -131,6 +133,7 @@ async def view_order(
     ],
     order_id: int
 ) -> OrderResponseSchema:
+    """Return the details of a single order. Users may only view their own orders."""
     return await get_order_by_id(
         db=db,
         current_user=current_user,
@@ -193,6 +196,7 @@ async def cancel_order(
     ],
     order_id: int
 ) -> MessageResponseSchema:
+    """Cancel a pending order. Only orders that have not been paid yet can be canceled."""
     return await cancel_order_service(
         db=db,
         current_user=current_user,
@@ -225,6 +229,7 @@ async def view_user_orders(
     ],
     user_id: int
 ) -> UserOrdersResponseSchema:
+    """Return the order history of any user by id. Restricted to moderators and admins."""
     return await get_orders_by_user_id(
         db=db,
         current_user=current_user,
