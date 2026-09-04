@@ -82,8 +82,9 @@ app.include_router(router=orders_router, prefix=f"{prefix}/orders", tags=["order
 app.include_router(router=payments_router, prefix=f"{prefix}/payments", tags=["payments"])
 
 
-@app.get("/health/", status_code=status.HTTP_200_OK)
+@app.get("/health/", status_code=status.HTTP_200_OK, tags=["health"])
 def health() -> dict:
+    """Basic liveness check confirming the API is up and configured."""
     return {
         "detail": "Connection configured!"
     }
