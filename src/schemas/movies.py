@@ -8,7 +8,7 @@ from database.models.movies import LikeDislikeEnum
 
 
 class CertificationRequestSchema(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=100, examples=["PG-13"])
 
 
 class CertificationResponseSchema(BaseModel):
@@ -21,7 +21,7 @@ class CertificationResponseSchema(BaseModel):
 
 
 class GenreRequestSchema(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=100, examples=["Action"])
 
 
 class GenreResponseSchema(BaseModel):
@@ -40,7 +40,7 @@ class GenreWithMovieCountResponseSchema(BaseModel):
 
 
 class StarRequestSchema(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=100, examples=["Tom Hardy"])
 
 
 class StarResponseSchema(BaseModel):
@@ -53,7 +53,7 @@ class StarResponseSchema(BaseModel):
 
 
 class DirectorRequestSchema(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=100, examples=["Christopher Nolan"])
 
 
 class DirectorResponseSchema(BaseModel):
@@ -81,19 +81,22 @@ class MovieListItemResponseSchema(BaseModel):
 
 
 class MovieCreateRequestSchema(BaseModel):
-    name: str = Field(max_length=250)
-    year: int
-    time: int = Field(gt=0)
-    imdb: float = Field(ge=0, le=10)
-    votes: int = Field(ge=0)
-    meta_score: float | None = Field(ge=0, le=100, default=None)
-    gross: float | None = Field(ge=0, default=None)
-    description: str = Field(min_length=1)
-    price: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
-    certification_id: int
-    genre_ids_or_names: list[int | str]
-    director_ids_or_names: list[int | str]
-    star_ids_or_names: list[int | str]
+    name: str = Field(max_length=250, examples=["Inception"])
+    year: int = Field(examples=[2010])
+    time: int = Field(gt=0, examples=[148])
+    imdb: float = Field(ge=0, le=10, examples=[8.8])
+    votes: int = Field(ge=0, examples=[2400000])
+    meta_score: float | None = Field(ge=0, le=100, default=None, examples=[74.0])
+    gross: float | None = Field(ge=0, default=None, examples=[292576195.0])
+    description: str = Field(
+        min_length=1,
+        examples=["A thief who steals corporate secrets through dream-sharing technology."]
+    )
+    price: Decimal = Field(gt=0, max_digits=10, decimal_places=2, examples=[9.99])
+    certification_id: int = Field(examples=[1])
+    genre_ids_or_names: list[int | str] = Field(examples=[["Action", "Sci-Fi"]])
+    director_ids_or_names: list[int | str] = Field(examples=[["Christopher Nolan"]])
+    star_ids_or_names: list[int | str] = Field(examples=[["Leonardo DiCaprio", "Tom Hardy"]])
 
     @field_validator("year")
     @classmethod
@@ -105,19 +108,26 @@ class MovieCreateRequestSchema(BaseModel):
 
 
 class MovieUpdateRequestSchema(BaseModel):
-    name: str | None = Field(max_length=250, default=None)
-    year: int | None = None
-    time: int | None = Field(gt=0, default=None)
-    imdb: float | None = Field(ge=0, le=10, default=None)
-    votes: int | None = Field(ge=0, default=None)
-    meta_score: float | None = Field(ge=0, le=100, default=None)
-    gross: float | None = Field(ge=0, default=None)
-    description: str | None = Field(min_length=1, default=None)
-    price: Decimal | None = Field(gt=0, max_digits=10, decimal_places=2, default=None)
-    certification_id: int | None = None
-    genre_ids_or_names: list[int | str] | None = None
-    director_ids_or_names: list[int | str] | None = None
-    star_ids_or_names: list[int | str] | None = None
+    name: str | None = Field(max_length=250, default=None, examples=["Inception"])
+    year: int | None = Field(default=None, examples=[2010])
+    time: int | None = Field(gt=0, default=None, examples=[148])
+    imdb: float | None = Field(ge=0, le=10, default=None, examples=[8.8])
+    votes: int | None = Field(ge=0, default=None, examples=[2400000])
+    meta_score: float | None = Field(ge=0, le=100, default=None, examples=[74.0])
+    gross: float | None = Field(ge=0, default=None, examples=[292576195.0])
+    description: str | None = Field(
+        min_length=1,
+        default=None,
+        examples=["A thief who steals corporate secrets through dream-sharing technology."]
+    )
+    price: Decimal | None = Field(gt=0, max_digits=10, decimal_places=2, default=None, examples=[9.99])
+    certification_id: int | None = Field(default=None, examples=[1])
+    genre_ids_or_names: list[int | str] | None = Field(default=None, examples=[["Action", "Sci-Fi"]])
+    director_ids_or_names: list[int | str] | None = Field(default=None, examples=[["Christopher Nolan"]])
+    star_ids_or_names: list[int | str] | None = Field(
+        default=None,
+        examples=[["Leonardo DiCaprio", "Tom Hardy"]]
+    )
 
     @field_validator("year")
     @classmethod
