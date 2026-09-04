@@ -111,6 +111,7 @@ async def create_certification(
     certification_data: CertificationRequestSchema,
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
 ) -> CertificationResponseSchema:
+    """Create a new certification. Restricted to moderators and admins."""
     return await create_certification_service(
         db=db,
         certification_data=certification_data,
@@ -139,6 +140,7 @@ async def create_certification(
 async def list_certifications(
     db: Annotated[AsyncSession, Depends(get_db)]
 ) -> list[CertificationResponseSchema]:
+    """Return the list of all certifications."""
     return await get_certifications(
         db=db
     )
@@ -166,6 +168,7 @@ async def get_certification(
     db: Annotated[AsyncSession, Depends(get_db)],
     certification_id: int
 ) -> CertificationResponseSchema:
+    """Return the details of a single certification by id."""
     return await get_certification_by_id(
         db=db,
         certification_id=certification_id
@@ -216,6 +219,7 @@ async def update_certification(
     certification_id: int,
     data: CertificationRequestSchema
 ) -> CertificationResponseSchema:
+    """Update the name of a certification. Restricted to moderators and admins."""
     return await update_certification_service(
         db=db,
         current_user=current_user,
@@ -267,6 +271,7 @@ async def delete_certification(
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
     certification_id: int,
 ) -> MessageResponseSchema:
+    """Delete a certification. Restricted to moderators and admins; fails if still assigned to a movie."""
     return await delete_certification_service(
         db=db,
         current_user=current_user,
@@ -307,6 +312,7 @@ async def create_genre(
     genre_data: GenreRequestSchema,
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
 ) -> GenreResponseSchema:
+    """Create a new genre. Restricted to moderators and admins."""
     return await create_genre_service(
         db=db,
         genre_data=genre_data,
@@ -335,6 +341,7 @@ async def create_genre(
 async def list_genres(
     db: Annotated[AsyncSession, Depends(get_db)]
 ) -> list[GenreResponseSchema]:
+    """Return the list of all genres, each with its movie count."""
     return await get_genres_with_movie_count(
         db=db
     )
@@ -362,6 +369,7 @@ async def get_genre(
     db: Annotated[AsyncSession, Depends(get_db)],
     genre_id: int
 ) -> GenreWithMovieCountResponseSchema:
+    """Return the details of a single genre, including its movie count."""
     return await get_genre_by_id(
         db=db,
         genre_id=genre_id
@@ -390,6 +398,7 @@ async def get_genre_movies(
     db: Annotated[AsyncSession, Depends(get_db)],
     genre_id: int
 ) -> list[MovieListItemResponseSchema] | MessageResponseSchema:
+    """Return the movies that belong to a genre."""
     return await get_movies_by_genre(
         db=db,
         genre_id=genre_id
@@ -440,6 +449,7 @@ async def update_genre(
     genre_id: int,
     data: GenreRequestSchema
 ) -> GenreResponseSchema:
+    """Update the name of a genre. Restricted to moderators and admins."""
     return await update_genre_service(
         db=db,
         current_user=current_user,
@@ -481,6 +491,7 @@ async def delete_genre(
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
     genre_id: int,
 ) -> MessageResponseSchema:
+    """Delete a genre. Restricted to moderators and admins."""
     return await delete_genre_service(
         db=db,
         current_user=current_user,
@@ -521,6 +532,7 @@ async def create_star(
     star_data: StarRequestSchema,
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
 ) -> StarResponseSchema:
+    """Create a new star. Restricted to moderators and admins."""
     return await create_star_service(
         db=db,
         star_data=star_data,
@@ -549,6 +561,7 @@ async def create_star(
 async def list_stars(
     db: Annotated[AsyncSession, Depends(get_db)]
 ) -> list[StarResponseSchema]:
+    """Return the list of all stars."""
     return await get_stars(
         db=db
     )
@@ -576,6 +589,7 @@ async def get_star(
     db: Annotated[AsyncSession, Depends(get_db)],
     star_id: int
 ) -> StarResponseSchema:
+    """Return the details of a single star by id."""
     return await get_star_by_id(
         db=db,
         star_id=star_id
@@ -626,6 +640,7 @@ async def update_star(
     star_id: int,
     data: StarRequestSchema
 ) -> StarResponseSchema:
+    """Update the name of a star. Restricted to moderators and admins."""
     return await update_star_service(
         db=db,
         current_user=current_user,
@@ -667,6 +682,7 @@ async def delete_star(
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
     star_id: int,
 ) -> MessageResponseSchema:
+    """Delete a star. Restricted to moderators and admins."""
     return await delete_star_service(
         db=db,
         current_user=current_user,
@@ -707,6 +723,7 @@ async def create_director(
     director_data: DirectorRequestSchema,
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))]
 ) -> DirectorResponseSchema:
+    """Create a new director. Restricted to moderators and admins."""
     return await create_director_service(
         db=db,
         director_data=director_data,
@@ -735,6 +752,7 @@ async def create_director(
 async def list_directors(
     db: Annotated[AsyncSession, Depends(get_db)]
 ) -> list[DirectorResponseSchema]:
+    """Return the list of all directors."""
     return await get_directors(
         db=db
     )
@@ -762,6 +780,7 @@ async def get_director(
     db: Annotated[AsyncSession, Depends(get_db)],
     director_id: int
 ) -> DirectorResponseSchema:
+    """Return the details of a single director by id."""
     return await get_director_by_id(
         db=db,
         director_id=director_id
@@ -812,6 +831,7 @@ async def update_director(
     director_id: int,
     data: DirectorRequestSchema
 ) -> DirectorResponseSchema:
+    """Update the name of a director. Restricted to moderators and admins."""
     return await update_director_service(
         db=db,
         current_user=current_user,
@@ -853,6 +873,7 @@ async def delete_director(
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
     director_id: int,
 ) -> MessageResponseSchema:
+    """Delete a director. Restricted to moderators and admins."""
     return await delete_director_service(
         db=db,
         current_user=current_user,
@@ -926,6 +947,8 @@ async def create_movie(
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
     movie_data: MovieCreateRequestSchema
 ) -> MovieDetailResponseSchema:
+    """Create a new movie with its certification, genres, stars, and directors.
+    Restricted to moderators and admins."""
     return await create_movie_service(
         db=db,
         current_user=current_user,
@@ -953,6 +976,7 @@ async def list_movies(
     sort_by: Literal["id", "price", "year", "imdb", "votes"] = "id",
     order: Literal["asc", "desc"] = "asc"
 ) -> PaginatedMovieResponseSchema:
+    """Return a paginated, filterable, and sortable list of movies."""
     return await get_movies(
         db=db,
         page=page,
@@ -983,6 +1007,7 @@ async def list_favorite_movies(
     page: int = 1,
     per_page: int = 20,
 ) -> PaginatedMovieResponseSchema:
+    """Return the current user's favorite movies, paginated."""
     return await get_favorite_movies(
         current_user=current_user,
         page=page,
@@ -1012,6 +1037,7 @@ async def get_movie(
     db: Annotated[AsyncSession, Depends(get_db)],
     movie_id: int,
 ) -> MovieDetailResponseSchema:
+    """Return the full details of a single movie by id."""
     return await get_movie_by_id(
         db=db,
         movie_id=movie_id,
@@ -1091,6 +1117,7 @@ async def update_movie(
     movie_id: int,
     update_data: MovieUpdateRequestSchema
 ) -> MovieDetailResponseSchema:
+    """Partially update a movie and its relations. Restricted to moderators and admins."""
     return await update_movie_service(
         db=db,
         current_user=current_user,
@@ -1132,6 +1159,7 @@ async def delete_movie(
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR))],
     movie_id: int,
 ) -> MessageResponseSchema:
+    """Delete a movie. Restricted to moderators and admins."""
     return await delete_movie_service(
         db=db,
         current_user=current_user,
@@ -1185,6 +1213,7 @@ async def add_to_favorites(
     ],
     movie_id: int
 ) -> MessageResponseSchema:
+    """Add a movie to the current user's favorites."""
     return await add_movie_to_favorites(
         db=db,
         current_user=current_user,
@@ -1239,6 +1268,7 @@ async def remove_from_favorites(
     ],
     movie_id: int
 ) -> MessageResponseSchema:
+    """Remove a movie from the current user's favorites."""
     return await remove_movie_from_favorites(
         db=db,
         current_user=current_user,
@@ -1304,6 +1334,7 @@ async def set_movie_reaction(
     movie_id: int,
     like_dislike: LikeDislikeMovieSchema
 ) -> MessageResponseSchema:
+    """Like or dislike a movie. A user may hold only one reaction per movie."""
     return await set_movie_reaction_service(
         db=db,
         current_user=current_user,
@@ -1370,6 +1401,7 @@ async def remove_movie_reaction(
     ],
     movie_id: int
 ) -> MessageResponseSchema:
+    """Remove the current user's like/dislike from a movie."""
     return await remove_movie_reaction_service(
         db=db,
         current_user=current_user,
@@ -1414,6 +1446,7 @@ async def set_movie_rating(
     movie_id: int,
     rating: MovieRateSchema
 ) -> MessageResponseSchema:
+    """Rate a movie on a 1-10 scale, replacing any previous rating by the current user."""
     return await set_movie_rating_service(
         db=db,
         current_user=current_user,
@@ -1469,6 +1502,7 @@ async def remove_movie_rating(
     ],
     movie_id: int
 ) -> MessageResponseSchema:
+    """Remove the current user's rating from a movie."""
     return await remove_movie_rating_service(
         db=db,
         current_user=current_user,
@@ -1531,6 +1565,8 @@ async def create_comment(
     movie_id: int,
     data: MovieCommentSchema
 ) -> MessageResponseSchema:
+    """Add a comment to a movie, optionally as a reply to another comment.
+    Notifies the parent comment's author by email."""
     return await create_comment_service(
         db=db,
         current_user=current_user,
@@ -1562,6 +1598,7 @@ async def list_comments(
     db: Annotated[AsyncSession, Depends(get_db)],
     movie_id: int,
 ) -> MovieCommentResponseSchema:
+    """Return all comments for a movie, including nested replies."""
     return await get_comments_for_movie(
         db=db,
         movie_id=movie_id
@@ -1615,6 +1652,7 @@ async def update_comment(
     comment_id: int,
     update_data: MovieCommentUpdateSchema
 ) -> MessageResponseSchema:
+    """Update the text of your own comment."""
     return await update_comment_service(
         db=db,
         current_user=current_user,
@@ -1669,6 +1707,7 @@ async def delete_comment(
     ],
     comment_id: int,
 ) -> MessageResponseSchema:
+    """Delete your own comment."""
     return await delete_comment_service(
         db=db,
         current_user=current_user,
