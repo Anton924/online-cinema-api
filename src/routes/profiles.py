@@ -86,6 +86,7 @@ async def create_profile(
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)],
     profile_data: Annotated[UserProfileRequestSchema, Depends(UserProfileRequestSchema.from_form)]
 ) -> UserProfileResponseSchema:
+    """Create the profile for the current user, optionally uploading an avatar. One profile per user."""
     return await create_user_profile(
         db=db,
         current_user=current_user,
@@ -118,6 +119,7 @@ async def read_own_profile(
     ],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)]
 ) -> UserProfileResponseSchema:
+    """Return the current user's profile, including a presigned URL for the avatar if one is set."""
     return await get_own_profile(
         current_user=current_user,
         s3_client=s3_client
@@ -160,6 +162,7 @@ async def update_profile(
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)],
     update_data: UserProfileRequestUpdateSchema
 ) -> UserProfileResponseSchema:
+    """Partially update the current user's profile fields (name, gender, date of birth, info)."""
     return await update_user_profile(
         db=db,
         current_user=current_user,
@@ -218,6 +221,7 @@ async def update_avatar(
         Depends(UserProfileRequestUpdateAvatarSchema.from_form)
     ]
 ) -> UserProfileResponseSchema:
+    """Upload a new avatar for the current user's profile, replacing the previous one in storage."""
     return await update_user_avatar(
         db=db,
         current_user=current_user,
@@ -283,6 +287,7 @@ async def delete_avatar(
     ],
     s3_client: Annotated[S3StorageInterface, Depends(get_s3_client)]
 ) -> UserProfileResponseSchema:
+    """Delete the current user's avatar from storage and clear it on the profile."""
     return await delete_user_avatar(
         db=db,
         current_user=current_user,
