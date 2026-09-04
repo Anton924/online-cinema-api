@@ -82,6 +82,7 @@ router = APIRouter()
     "/certifications",
     status_code=status.HTTP_201_CREATED,
     response_model=CertificationResponseSchema,
+    tags=["Certifications"],
     responses={
         409: {
             "description": "Conflict - A certification with this name already exists.",
@@ -121,6 +122,7 @@ async def create_certification(
     "/certifications",
     status_code=status.HTTP_200_OK,
     response_model=list[CertificationResponseSchema],
+    tags=["Certifications"],
     responses={
         404: {
             "description": "Not Found - No certifications found.",
@@ -146,6 +148,7 @@ async def list_certifications(
     "/certifications/{certification_id}",
     status_code=status.HTTP_200_OK,
     response_model=CertificationResponseSchema,
+    tags=["Certifications"],
     responses={
         404: {
             "description": "Not Found - No certification with this id exists.",
@@ -173,6 +176,7 @@ async def get_certification(
     "/certifications/{certification_id}",
     status_code=status.HTTP_200_OK,
     response_model=CertificationResponseSchema,
+    tags=["Certifications"],
     responses={
         404: {
             "description": "Not Found - No certification with this id exists.",
@@ -224,6 +228,7 @@ async def update_certification(
     "/certifications/{certification_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Certifications"],
     responses={
         404: {
             "description": "Not Found - No certification with this id exists.",
@@ -273,6 +278,7 @@ async def delete_certification(
     "/genres",
     status_code=status.HTTP_201_CREATED,
     response_model=GenreResponseSchema,
+    tags=["Genres"],
     responses={
         409: {
             "description": "Conflict - A genre with this name already exists.",
@@ -312,6 +318,7 @@ async def create_genre(
     "/genres",
     status_code=status.HTTP_200_OK,
     response_model=list[GenreResponseSchema],
+    tags=["Genres"],
     responses={
         404: {
             "description": "Not Found - No genres found.",
@@ -337,6 +344,7 @@ async def list_genres(
     "/genres/{genre_id}",
     status_code=status.HTTP_200_OK,
     response_model=GenreWithMovieCountResponseSchema,
+    tags=["Genres"],
     responses={
         404: {
             "description": "Not Found - No genre with this id exists.",
@@ -364,6 +372,7 @@ async def get_genre(
     "/genres/{genre_id}/movies",
     status_code=status.HTTP_200_OK,
     response_model=list[MovieListItemResponseSchema] | MessageResponseSchema,
+    tags=["Genres"],
     responses={
         404: {
             "description": "Not Found - No genre with this id exists.",
@@ -391,6 +400,7 @@ async def get_genre_movies(
     "/genres/{genre_id}",
     status_code=status.HTTP_200_OK,
     response_model=GenreResponseSchema,
+    tags=["Genres"],
     responses={
         404: {
             "description": "Not Found - No genre with this id exists.",
@@ -442,6 +452,7 @@ async def update_genre(
     "/genres/{genre_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Genres"],
     responses={
         404: {
             "description": "Not Found - No genre with this id exists.",
@@ -481,6 +492,7 @@ async def delete_genre(
     "/stars",
     status_code=status.HTTP_201_CREATED,
     response_model=StarResponseSchema,
+    tags=["Stars"],
     responses={
         409: {
             "description": "Conflict - A star with this name already exists.",
@@ -520,6 +532,7 @@ async def create_star(
     "/stars",
     status_code=status.HTTP_200_OK,
     response_model=list[StarResponseSchema],
+    tags=["Stars"],
     responses={
         404: {
             "description": "Not Found - No stars found.",
@@ -545,6 +558,7 @@ async def list_stars(
     "/stars/{star_id}",
     status_code=status.HTTP_200_OK,
     response_model=StarResponseSchema,
+    tags=["Stars"],
     responses={
         404: {
             "description": "Not Found - No star with this id exists.",
@@ -572,6 +586,7 @@ async def get_star(
     "/stars/{star_id}",
     status_code=status.HTTP_200_OK,
     response_model=StarResponseSchema,
+    tags=["Stars"],
     responses={
         404: {
             "description": "Not Found - No star with this id exists.",
@@ -623,6 +638,7 @@ async def update_star(
     "/stars/{star_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Stars"],
     responses={
         404: {
             "description": "Not Found - No star with this id exists.",
@@ -662,6 +678,7 @@ async def delete_star(
     "/directors",
     status_code=status.HTTP_201_CREATED,
     response_model=DirectorResponseSchema,
+    tags=["Directors"],
     responses={
         409: {
             "description": "Conflict - A director with this name already exists.",
@@ -701,6 +718,7 @@ async def create_director(
     "/directors",
     status_code=status.HTTP_200_OK,
     response_model=list[DirectorResponseSchema],
+    tags=["Directors"],
     responses={
         404: {
             "description": "Not Found - No directors found.",
@@ -726,6 +744,7 @@ async def list_directors(
     "/directors/{director_id}",
     status_code=status.HTTP_200_OK,
     response_model=DirectorResponseSchema,
+    tags=["Directors"],
     responses={
         404: {
             "description": "Not Found - No director with this id exists.",
@@ -753,6 +772,7 @@ async def get_director(
     "/directors/{director_id}",
     status_code=status.HTTP_200_OK,
     response_model=DirectorResponseSchema,
+    tags=["Directors"],
     responses={
         404: {
             "description": "Not Found - No director with this id exists.",
@@ -804,6 +824,7 @@ async def update_director(
     "/directors/{director_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Directors"],
     responses={
         404: {
             "description": "Not Found - No director with this id exists.",
@@ -843,6 +864,7 @@ async def delete_director(
     "",
     status_code=status.HTTP_201_CREATED,
     response_model=MovieDetailResponseSchema,
+    tags=["Movies"],
     responses={
         404: {
             "description": "Not Found - The certification, genre, star, or director id given does not exist.",
@@ -915,6 +937,7 @@ async def create_movie(
     "",
     status_code=status.HTTP_200_OK,
     response_model=PaginatedMovieResponseSchema,
+    tags=["Movies"],
 )
 async def list_movies(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -949,7 +972,8 @@ async def list_movies(
 @router.get(
     "/favorites",
     status_code=status.HTTP_200_OK,
-    response_model=PaginatedMovieResponseSchema
+    response_model=PaginatedMovieResponseSchema,
+    tags=["Favorites"],
 )
 async def list_favorite_movies(
     current_user: Annotated[
@@ -970,6 +994,7 @@ async def list_favorite_movies(
     "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MovieDetailResponseSchema,
+    tags=["Movies"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists.",
@@ -997,6 +1022,7 @@ async def get_movie(
     "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MovieDetailResponseSchema,
+    tags=["Movies"],
     responses={
         404: {
             "description": "Not Found - The movie, certification, genre, star, or director id given does not exist.",
@@ -1077,6 +1103,7 @@ async def update_movie(
     "/{movie_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Movies"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists.",
@@ -1116,6 +1143,7 @@ async def delete_movie(
     "/{movie_id}/favorites",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Favorites"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists.",
@@ -1168,6 +1196,7 @@ async def add_to_favorites(
     "/{movie_id}/favorites",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Favorites"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists, or it is not in your favorites.",
@@ -1221,6 +1250,7 @@ async def remove_from_favorites(
     "/{movie_id}/like",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Reactions"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists.",
@@ -1286,6 +1316,7 @@ async def set_movie_reaction(
     "/{movie_id}/like",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Reactions"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists, or you have not reacted to it.",
@@ -1350,6 +1381,7 @@ async def remove_movie_reaction(
     "/{movie_id}/rating",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Ratings"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists.",
@@ -1394,6 +1426,7 @@ async def set_movie_rating(
     "/{movie_id}/rating",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Ratings"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists, or you have not rated it.",
@@ -1447,6 +1480,7 @@ async def remove_movie_rating(
     "/{movie_id}/comments",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Comments"],
     responses={
         404: {
             "description": "Not Found - The movie or the parent comment given does not exist.",
@@ -1510,6 +1544,7 @@ async def create_comment(
     "/{movie_id}/comments",
     status_code=status.HTTP_200_OK,
     response_model=MovieCommentResponseSchema,
+    tags=["Comments"],
     responses={
         404: {
             "description": "Not Found - No movie with this id exists.",
@@ -1537,6 +1572,7 @@ async def list_comments(
     "/comments/{comment_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Comments"],
     responses={
         403: {
             "description": "Forbidden - You can only change your own comments.",
@@ -1591,6 +1627,7 @@ async def update_comment(
     "/comments/{comment_id}",
     status_code=status.HTTP_200_OK,
     response_model=MessageResponseSchema,
+    tags=["Comments"],
     responses={
         403: {
             "description": "Forbidden - You can only delete your own comments.",
