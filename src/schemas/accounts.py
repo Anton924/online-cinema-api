@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from database import accounts_validators
 from schemas.profiles import UserProfileResponseSchema
@@ -9,8 +9,8 @@ from database.models.accounts import UserGroupEnum
 
 
 class BaseEmailPasswordSchema(BaseModel):
-    email: EmailStr
-    password: str
+    email: EmailStr = Field(examples=["user@example.com"])
+    password: str = Field(examples=["StrongPassword123!"])
 
     @field_validator("email")
     @classmethod
@@ -39,17 +39,17 @@ class UserRegistrationResponseSchema(BaseModel):
 
 
 class UserActivationRequestSchema(BaseModel):
-    email: EmailStr
-    token: str
+    email: EmailStr = Field(examples=["user@example.com"])
+    token: str = Field(examples=["a1b2c3d4-e5f6-7890-abcd-ef1234567890"])
 
 
 class ResendActivationRequestSchema(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(examples=["user@example.com"])
 
 
 class UserLoginRequestSchema(BaseModel):
-    email: EmailStr
-    password: str
+    email: EmailStr = Field(examples=["user@example.com"])
+    password: str = Field(examples=["StrongPassword123!"])
 
     @field_validator("email")
     @classmethod
@@ -68,11 +68,11 @@ class TokenPairResponseSchema(BaseModel):
 
 
 class LogoutRequestSchema(BaseModel):
-    refresh_token: str
+    refresh_token: str = Field(examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."])
 
 
 class TokenRefreshRequestSchema(BaseModel):
-    refresh_token: str
+    refresh_token: str = Field(examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."])
 
 
 class TokenRefreshResponseSchema(BaseModel):
@@ -85,18 +85,18 @@ class TokenRefreshResponseSchema(BaseModel):
 
 
 class PasswordChangeRequestSchema(BaseModel):
-    old_password: str
-    new_password: str
+    old_password: str = Field(examples=["OldPassword123!"])
+    new_password: str = Field(examples=["NewStrongPassword456!"])
 
 
 class PasswordResetRequestSchema(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(examples=["user@example.com"])
 
 
 class PasswordResetCompleteRequestSchema(BaseModel):
-    email: EmailStr
-    token: str
-    new_password: str
+    email: EmailStr = Field(examples=["user@example.com"])
+    token: str = Field(examples=["a1b2c3d4-e5f6-7890-abcd-ef1234567890"])
+    new_password: str = Field(examples=["NewStrongPassword456!"])
 
 
 class UserResponseSchema(BaseModel):
@@ -114,8 +114,8 @@ class MessageResponseSchema(BaseModel):
 
 
 class ChangeUserGroupRequestSchema(BaseModel):
-    group: UserGroupEnum
+    group: UserGroupEnum = Field(examples=[UserGroupEnum.MODERATOR])
 
 
 class UserActiveDeactivateStatusRequestSchema(BaseModel):
-    is_active: bool
+    is_active: bool = Field(examples=[True])
