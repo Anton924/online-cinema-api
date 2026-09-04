@@ -28,10 +28,10 @@ class UserRegistrationRequestSchema(BaseEmailPasswordSchema):
 
 
 class UserRegistrationResponseSchema(BaseModel):
-    id: int
-    email: EmailStr
-    is_active: bool
-    created_at: datetime
+    id: int = Field(examples=[1])
+    email: EmailStr = Field(examples=["user@example.com"])
+    is_active: bool = Field(examples=[False])
+    created_at: datetime = Field(examples=["2024-01-01T12:00:00"])
 
     model_config = {
         "from_attributes": True
@@ -58,8 +58,8 @@ class UserLoginRequestSchema(BaseModel):
 
 
 class TokenPairResponseSchema(BaseModel):
-    access_token: str
-    refresh_token: str
+    access_token: str = Field(examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."])
+    refresh_token: str = Field(examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."])
     token_type: str = "bearer"
 
     model_config = {
@@ -76,7 +76,7 @@ class TokenRefreshRequestSchema(BaseModel):
 
 
 class TokenRefreshResponseSchema(BaseModel):
-    access_token: str
+    access_token: str = Field(examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."])
     token_type: str = "bearer"
 
     model_config = {
@@ -100,17 +100,17 @@ class PasswordResetCompleteRequestSchema(BaseModel):
 
 
 class UserResponseSchema(BaseModel):
-    id: int
-    email: EmailStr
-    is_active: bool
-    group: str
-    created_at: datetime
-    updated_at: datetime
+    id: int = Field(examples=[1])
+    email: EmailStr = Field(examples=["user@example.com"])
+    is_active: bool = Field(examples=[True])
+    group: str = Field(examples=["user"])
+    created_at: datetime = Field(examples=["2024-01-01T12:00:00"])
+    updated_at: datetime = Field(examples=["2024-01-01T12:00:00"])
     profile: UserProfileResponseSchema | None
 
 
 class MessageResponseSchema(BaseModel):
-    message: str
+    message: str = Field(examples=["Operation completed successfully."])
 
 
 class ChangeUserGroupRequestSchema(BaseModel):
