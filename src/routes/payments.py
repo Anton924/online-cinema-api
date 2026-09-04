@@ -54,6 +54,8 @@ async def list_all_payments(
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> list[PaymentAdminListItemResponseSchema]:
+    """Return all payments across all users, optionally filtered by status, user id, and date range.
+    Restricted to moderators and admins."""
     return await get_all_payments(
         db=db,
         current_user=current_user,
@@ -86,6 +88,7 @@ async def stripe_webhook(
     payment_gateway: Annotated[PaymentGatewayInterface, Depends(get_payment_gateway)],
     request: Request
 ) -> MessageResponseSchema:
+    """Receive and process a Stripe webhook event to update the related payment and order status."""
     return await handle_stripe_webhook(
         db=db,
         payment_gateway=payment_gateway,
@@ -97,6 +100,7 @@ async def stripe_webhook(
 async def payment_success(
     session_id: str = Query(...)
 ) -> dict:
+    """Landing page Stripe redirects to after a successful checkout session."""
     return {
         "status": "success",
         "session_id": session_id
@@ -105,6 +109,7 @@ async def payment_success(
 
 @router.get("/cancel")
 async def payment_cancel() -> dict:
+    """Landing page Stripe redirects to when the user cancels checkout."""
     return {
         "status": "cancelled",
     }
@@ -122,6 +127,7 @@ async def list_payments(
         Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
     ],
 ) -> list[PaymentListItemResponseSchema]:
+    """Return the payment history of the currently authenticated user."""
     return await get_user_payments(
         db=db,
         current_user=current_user
@@ -196,6 +202,7 @@ async def create_payment(
     settings: Annotated[BaseAppSettings, Depends(get_settings)],
     order_id: int
 ) -> PaymentSessionResponseSchema:
+    """Create a Stripe checkout session for a pending order and return the payment URL."""
     return await create_payment_session(
         db=db,
         payment_gateway=payment_gateway,
@@ -240,6 +247,7 @@ async def view_payment(
     ],
     payment_id: int
 ) -> PaymentResponseSchema:
+    """Return the details of a single payment. Users may only view their own payments."""
     return await get_payment_by_id(
         db=db,
         current_user=current_user,
@@ -294,6 +302,7 @@ async def refund_payment(
     payment_id: int,
     amount: Decimal | None = None
 ) -> MessageResponseSchema:
+    """Refund a successful payment via Stripe, fully or partially. Restricted to moderators and admins."""
     return await refund_payment_service(
         db=db,
         payment_gateway=payment_gateway,
