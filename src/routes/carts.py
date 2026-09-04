@@ -72,6 +72,7 @@ async def add_to_cart(
     ],
     movie_id: int
 ) -> MessageResponseSchema:
+    """Add a movie to the current user's shopping cart, creating the cart on first use."""
     return await add_movie_to_cart(
         db=db,
         current_user=current_user,
@@ -125,6 +126,7 @@ async def remove_from_cart(
     ],
     movie_id: int
 ) -> MessageResponseSchema:
+    """Remove a movie from the current user's shopping cart."""
     return await remove_movie_from_cart(
         db=db,
         current_user=current_user,
@@ -144,6 +146,7 @@ async def view_cart(
         Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
     ]
 ) -> CartResponseSchema | MessageResponseSchema:
+    """Return the contents of the current user's shopping cart."""
     return await get_cart(
         db=db,
         current_user=current_user
@@ -174,6 +177,7 @@ async def clear_cart(
         Depends(require_roles(UserGroupEnum.USER, UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))
     ]
 ) -> MessageResponseSchema:
+    """Remove all items from the current user's shopping cart."""
     return await clear_cart_items(
         db=db,
         current_user=current_user
@@ -202,6 +206,7 @@ async def view_user_cart(
     current_user: Annotated[UserModel, Depends(require_roles(UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN))],
     user_id: int
 ) -> MessageResponseSchema | UserCartResponseSchema:
+    """Return the shopping cart of any user by id. Restricted to moderators and admins."""
     return await get_cart_by_user_id(
         db=db,
         current_user=current_user,
