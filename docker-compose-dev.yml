@@ -3,7 +3,7 @@ services:
     image: 'postgres:15'
     container_name: postgres_cinema
     env_file:
-      - .env
+      - envs/.env.local
     ports:
       - "5433:5432"
     volumes:
@@ -24,7 +24,7 @@ services:
     ports:
       - "3333:80"
     env_file:
-      - .env
+      - envs/.env.local
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +39,7 @@ services:
     container_name: backend_cinema
     command: [ "/bin/bash", "/commands/run_web_server_dev.sh" ]
     env_file:
-      - .env
+      - envs/.env.local
     environment:
       - LOG_LEVEL=debug
       - PYTHONPATH=/usr/src/fastapi
@@ -51,6 +51,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     volumes:
       - ./src:/usr/src/fastapi
     networks:
@@ -67,7 +69,7 @@ services:
       - "8025:8025"
       - "1025:1025"
     env_file:
-      - .env
+      - envs/.env.local
     environment:
       MH_AUTH_FILE: /mailhog.auth
     networks:
@@ -83,7 +85,7 @@ services:
     volumes:
       - ./src:/usr/src/fastapi
     env_file:
-      - .env
+      - envs/.env.local
     environment:
       - PYTHONPATH=/usr/src/fastapi
     networks:
@@ -97,7 +99,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     env_file:
-      - .env
+      - envs/.env.local
     volumes:
       - minio_data:/data
     healthcheck:
@@ -118,12 +120,13 @@ services:
       minio:
         condition: service_healthy
     env_file:
-      - .env
+      - envs/.env.local
     networks:
       - cinema_network
 
   redis:
     image: redis:latest
+    container_name: redis
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
@@ -133,6 +136,7 @@ services:
       - redis_data:/usr/redis/data
     networks:
       - cinema_network
+
   celery_worker:
     build: .
     container_name: cinema_celery_worker
@@ -143,7 +147,7 @@ services:
     volumes:
       - ./src:/usr/src/fastapi
     env_file:
-      - .env
+      - envs/.env.local
     environment:
       - PYTHONPATH=/usr/src/fastapi
     networks:
@@ -159,7 +163,7 @@ services:
     volumes:
       - ./src:/usr/src/fastapi
     env_file:
-      - .env
+      - envs/.env.local
     environment:
       - PYTHONPATH=/usr/src/fastapi
     networks:
