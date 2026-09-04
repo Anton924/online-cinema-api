@@ -85,6 +85,7 @@ async def register(
         user_data: UserRegistrationRequestSchema,
         email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)]
 ) -> UserRegistrationResponseSchema:
+    """Register a new user account. Sends an activation email; the account stays inactive until activated."""
     return await register_user(db=db, user_data=user_data, email_sender=email_sender)
 
 
@@ -122,6 +123,7 @@ async def activate(
         activation_data: UserActivationRequestSchema,
         email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)]
 ) -> MessageResponseSchema:
+    """Activate a user account using the token sent by email during registration."""
     return await activate_user(
         db=db,
         activation_data=activation_data,
@@ -170,6 +172,7 @@ async def activate_activation_link(
         token: str,
         email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)]
 ) -> MessageResponseSchema:
+    """Activate a user account via the direct link sent in the activation email."""
     return await activate_through_activation_link(
         db=db,
         email=email,
@@ -212,6 +215,7 @@ async def resend_activation(
         resend_activation_data: ResendActivationRequestSchema,
         email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
 ) -> MessageResponseSchema:
+    """Resend a fresh activation token to a user who has not yet activated their account."""
     return await resend_activation_token(
         db=db,
         resend_activation_data=resend_activation_data,
@@ -267,6 +271,7 @@ async def login(
     jwt_auth_manager: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
     settings: Annotated[BaseAppSettings, Depends(get_settings)]
 ) -> TokenPairResponseSchema:
+    """Authenticate with email and password and return a new access/refresh token pair."""
     return await login_user(
         db=db,
         login_data=login_data,
@@ -296,6 +301,7 @@ async def logout(
     db: Annotated[AsyncSession, Depends(get_db)],
     logout_data: LogoutRequestSchema,
 ) -> MessageResponseSchema:
+    """Revoke a refresh token, invalidating it for future use."""
     return await revoke_refresh_token(
         db=db,
         logout_data=logout_data
@@ -344,6 +350,7 @@ async def refresh(
     jwt_auth_manager: Annotated[JWTAuthManagerInterface, Depends(get_jwt_auth_manager)],
     request_refresh_token_data: TokenRefreshRequestSchema,
 ) -> TokenRefreshResponseSchema:
+    """Exchange a valid refresh token for a new access token."""
     return await refresh_access_token(
         db=db,
         jwt_auth_manager=jwt_auth_manager,
@@ -392,6 +399,7 @@ async def refresh(
 async def read_me(
     current_user: Annotated[UserModel, Depends(get_current_user)]
 ) -> UserResponseSchema:
+    """Return the account and profile details of the currently authenticated user."""
     return UserResponseSchema(
         id=current_user.id,
         email=current_user.email,
@@ -425,6 +433,7 @@ async def request_password_reset(
     email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
     reset_password_data: PasswordResetRequestSchema
 ) -> MessageResponseSchema:
+    """Send a password reset token to the user's email."""
     return await request_user_password_reset(
         db=db,
         email_sender=email_sender,
@@ -478,6 +487,7 @@ async def reset_password(
     email_sender: Annotated[EmailSenderInterface, Depends(get_email_sender)],
     reset_password_data: PasswordResetCompleteRequestSchema
 ) -> MessageResponseSchema:
+    """Complete a password reset using the token sent to the user's email."""
     return await reset_user_password(
         db=db,
         email_sender=email_sender,
@@ -556,6 +566,7 @@ async def change_user_password(
     change_password_data: PasswordChangeRequestSchema,
     token: Annotated[str, Depends(get_token)],
 ) -> MessageResponseSchema:
+    """Change the password of the currently authenticated user, verifying the old password first."""
     return await change_password(
         db=db,
         jwt_auth_manager=jwt_auth_manager,
@@ -650,6 +661,7 @@ async def change_user_group(
     current_user: Annotated[UserModel, Depends(get_current_user)],
     user_id: int
 ) -> MessageResponseSchema:
+    """Change a user's group (user/moderator/admin). Restricted to administrators."""
     return await change_user_group_from_admin(
         db=db,
         change_group_data=change_group_data,
@@ -753,6 +765,7 @@ async def activate_deactivate_user(
     current_user: Annotated[UserModel, Depends(get_current_user)],
     user_id: int
 ) -> MessageResponseSchema:
+    """Manually activate or deactivate a user account. Restricted to administrators."""
     return await activate_deactivate_user_manually(
         db=db,
         activation_data=activation_data,
