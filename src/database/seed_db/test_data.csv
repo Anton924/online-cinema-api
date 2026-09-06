@@ -1,0 +1,25 @@
+name,year,time,imdb,votes,meta_score,gross,description,price,certification,genres,stars,directors
+Inception,2010,148,8.8,2400000,74.0,836800000.0,A thief who steals corporate secrets through dream-sharing technology.,14.99,PG-13,"Action,Sci-Fi","Leonardo DiCaprio,Tom Hardy",Christopher Nolan
+The Dark Knight,2008,152,9.0,2800000,84.0,1006000000.0,"Batman faces the Joker, a criminal mastermind who wants to plunge Gotham into anarchy.",14.99,PG-13,"Action,Crime","Christian Bale,Heath Ledger",Christopher Nolan
+The Dark Knight Rises,2012,164,8.4,1700000,78.0,1081000000.0,Batman returns to protect Gotham from the terrorist leader Bane.,14.99,PG-13,"Action,Drama","Christian Bale,Tom Hardy",Christopher Nolan
+Interstellar,2014,169,8.7,2100000,74.0,701700000.0,A team of explorers travel through a wormhole to ensure humanity's survival.,14.99,PG-13,"Sci-Fi,Drama","Matthew McConaughey,Anne Hathaway",Christopher Nolan
+Oppenheimer,2023,180,8.4,650000,88.0,950000000.0,The story of J. Robert Oppenheimer and the creation of the atomic bomb.,19.99,R,"Drama,History","Cillian Murphy,Robert Downey Jr.",Christopher Nolan
+Pulp Fiction,1994,154,8.9,2100000,94.0,213900000.0,"The lives of two mob hitmen, a boxer, and others intertwine in Los Angeles.",9.99,R,"Thriller,Comedy","John Travolta,Uma Thurman",Quentin Tarantino
+Django Unchained,2012,165,8.4,1600000,81.0,425400000.0,A freed slave sets out to rescue his wife from a brutal Mississippi plantation owner.,9.99,R,"Drama,Western","Jamie Foxx,Christoph Waltz",Quentin Tarantino
+The Avengers,2012,143,8.0,1400000,69.0,1519000000.0,Earth's mightiest heroes assemble to stop an alien invasion.,12.99,PG-13,"Action,Sci-Fi","Robert Downey Jr.,Scarlett Johansson",Joss Whedon
+Iron Man,2008,126,7.9,1200000,79.0,585300000.0,A billionaire industrialist and genius inventor builds a suit of armor to fight evil.,9.99,PG-13,"Action,Adventure,Sci-Fi","Robert Downey Jr.,Gwyneth Paltrow",Jon Favreau
+Black Panther,2018,134,7.3,800000,88.0,1347000000.0,"T'Challa returns home to take his place as king, but a challenge from the past threatens his rule.",12.99,PG-13,"Action,Adventure,Sci-Fi","Chadwick Boseman,Michael B. Jordan",Ryan Coogler
+The Matrix,1999,136,8.7,2000000,73.0,467200000.0,A hacker learns the truth about his reality and his role in the war against its controllers.,9.99,R,"Sci-Fi,Action","Keanu Reeves,Laurence Fishburne","Lana Wachowski,Lilly Wachowski"
+Fight Club,1999,139,8.8,2200000,66.0,101200000.0,An insomniac and a soap maker form an underground fight club.,9.99,R,Drama,"Brad Pitt,Edward Norton",David Fincher
+Se7en,1995,127,8.6,1900000,65.0,327300000.0,Two detectives hunt a serial killer who uses the seven deadly sins as his motives.,9.99,R,"Crime,Thriller","Brad Pitt,Morgan Freeman",David Fincher
+Gone Girl,2014,149,8.1,930000,79.0,369300000.0,A man becomes the prime suspect when his wife disappears on their fifth wedding anniversary.,9.99,R,"Drama,Mystery,Thriller","Ben Affleck,Rosamund Pike",David Fincher
+Dune,2021,155,8.0,750000,74.0,402000000.0,A noble family becomes embroiled in a war for control over a desert planet.,17.99,PG-13,"Sci-Fi,Drama","Timothee Chalamet,Zendaya",Denis Villeneuve
+Arrival,2016,116,7.9,780000,81.0,203400000.0,A linguist works with the military to communicate with alien lifeforms after twelve mysterious spacecraft land around the world.,9.99,PG-13,"Sci-Fi,Drama,Mystery","Amy Adams,Jeremy Renner",Denis Villeneuve
+Toy Story,1995,81,8.3,1100000,95.0,373600000.0,A cowboy doll is threatened when a new spaceman action figure supplants him.,6.99,G,"Animation,Family,Comedy","Tom Hanks,Tim Allen",John Lasseter
+Coco,2017,105,8.4,460000,81.0,807100000.0,"A boy is transported to the Land of the Dead, seeking his musical ancestor's blessing.",7.99,PG,"Animation,Family,Music","Anthony Gonzalez,Gael Garcia Bernal",Lee Unkrich
+Get Out,2017,104,7.7,700000,85.0,255400000.0,A young African-American visits his white girlfriend's parents' estate with unease.,9.99,R,"Horror,Thriller","Daniel Kaluuya,Allison Williams",Jordan Peele
+Joker,2019,122,8.4,1500000,59.0,1074000000.0,A mentally troubled comedian embarks on a downward spiral that leads to the creation of an iconic villain.,12.99,R,"Crime,Drama,Thriller","Joaquin Phoenix,Robert De Niro",Todd Phillips
+Parasite,2019,132,8.5,980000,96.0,258800000.0,Greed and class discrimination threaten the newly formed symbiotic relationship between two families.,12.99,R,"Drama,Thriller","Song Kang-ho,Lee Sun-kyun",Bong Joon Ho
+La La Land,2016,128,8.0,730000,94.0,446100000.0,A jazz pianist falls for an aspiring actress in Los Angeles.,9.99,PG-13,"Comedy,Drama,Music","Ryan Gosling,Emma Stone",Damien Chazelle
+Barbie,2023,114,6.9,560000,80.0,1446000000.0,Barbie and Ken are having the time of their lives until an existential crisis changes everything.,14.99,PG-13,"Comedy,Fantasy,Adventure","Margot Robbie,Ryan Gosling",Greta Gerwig
+Top Gun: Maverick,2022,130,8.2,700000,78.0,1495700000.0,"After thirty years, Maverick is still pushing the envelope as a naval aviator, training a new generation of pilots.",14.99,PG-13,"Action,Drama","Tom Cruise,Miles Teller",Joseph Kosinski
