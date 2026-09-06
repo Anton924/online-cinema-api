@@ -1,8 +1,8 @@
 import asyncio
-
+import csv
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db_contextmanager
 from database.models.movies import (
     CertificationModel,
     GenreModel,
@@ -12,165 +12,129 @@ from database.models.movies import (
 )
 from database.models.accounts import UserGroup, UserGroupEnum, UserModel
 from database.models import carts, orders, payments  # noqa: F401
-from config.dependencies import (
-    get_settings
-)
+from config.dependencies import get_settings
+from config.settings import BaseAppSettings
+from database import get_db_contextmanager
 
 
-async def create_user_groups() -> None:
-    async with get_db_contextmanager() as db:
-        result = await db.execute(select(UserGroup))
+class CSVDatabaseSeeder:
+
+    def __init__(self, db_session: AsyncSession, settings: BaseAppSettings, csv_file_path: str) -> None:
+        self.db_session = db_session
+        self.settings = settings
+        self.csv_file_path = csv_file_path
+
+    async def create_user_groups(self) -> None:
+        result = await self.db_session.execute(select(UserGroup))
         existing_groups = {group.name for group in result.scalars().all()}
 
         for group_enum in UserGroupEnum:
             if group_enum not in existing_groups:
-                db.add(UserGroup(name=group_enum))
+                self.db_session.add(UserGroup(name=group_enum))
 
-        await db.commit()
-
-
-async def create_admin_user() -> None:
-    settings = get_settings()
-
-    async with get_db_contextmanager() as db:
-        result = await db.execute(select(UserModel).where(UserModel.email == settings.ADMIN_EMAIL))
+    async def create_admin_user(self) -> None:
+        result = await self.db_session.execute(select(UserModel).where(UserModel.email == self.settings.ADMIN_EMAIL))
         existing_admin = result.scalars().first()
         if existing_admin:
             return
 
-        admin_group = await db.scalar(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))
+        admin_group = await self.db_session.scalar(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))
         if not admin_group:
             raise RuntimeError("Admin group not found. Run create_user_groups() first.")
 
         admin_user = UserModel.create(
-            email=settings.ADMIN_EMAIL,
-            raw_password=settings.ADMIN_PASSWORD,
+            email=self.settings.ADMIN_EMAIL,
+            raw_password=self.settings.ADMIN_PASSWORD,
             group_id=admin_group.id
         )
         admin_user.is_active = True
 
-        db.add(admin_user)
-        await db.commit()
+        self.db_session.add(admin_user)
 
+    async def _get_or_create(self, model: type, name: str, cache: dict) -> object:
+        if name in cache:
+            return cache[name]
 
-async def create_test_movies() -> None:
-    async with get_db_contextmanager() as db:
-        result = await db.execute(select(MovieModel))
+        result = await self.db_session.execute(select(model).where(model.name == name))
+        obj = result.scalars().first()
+
+        if obj is None:
+            obj = model(name=name)
+            self.db_session.add(obj)
+            await self.db_session.flush()
+
+        cache[name] = obj
+        return obj
+
+    async def create_movies_from_csv(self) -> None:
+        result = await self.db_session.execute(select(MovieModel))
         if result.scalars().first():
             return
 
-        certifications = {
-            name: CertificationModel(name=name)
-            for name in ("G", "PG-13", "R")
-        }
-        db.add_all(certifications.values())
+        certifications_cache: dict = {}
+        genres_cache: dict = {}
+        stars_cache: dict = {}
+        directors_cache: dict = {}
 
-        genres = {
-            name: GenreModel(name=name)
-            for name in ("Action", "Drama", "Sci-Fi", "Comedy", "Thriller")
-        }
-        db.add_all(genres.values())
+        with open(self.csv_file_path) as f:
+            for row in csv.DictReader(f):
+                certification = await self._get_or_create(
+                    CertificationModel, row["certification"], certifications_cache
+                )
 
-        stars = {
-            name: StarModel(name=name)
-            for name in ("Leonardo DiCaprio", "Tom Hardy", "Cillian Murphy", "Scarlett Johansson", "Robert Downey Jr.")
-        }
-        db.add_all(stars.values())
+                genres = [
+                    await self._get_or_create(
+                        GenreModel, name.strip(), genres_cache
+                    )
+                    for name in row["genres"].split(",")
+                ]
+                stars = [
+                    await self._get_or_create(
+                        StarModel, name.strip(), stars_cache
+                    )
+                    for name in row["stars"].split(",")
+                ]
+                directors = [
+                    await self._get_or_create(
+                        DirectorModel, name.strip(), directors_cache
+                    )
+                    for name in row["directors"].split(",")
+                ]
 
-        directors = {
-            name: DirectorModel(name=name)
-            for name in ("Christopher Nolan", "Quentin Tarantino", "Denis Villeneuve")
-        }
-        db.add_all(directors.values())
+                movie = MovieModel(
+                    name=row["name"],
+                    year=int(row["year"]),
+                    time=int(row["time"]),
+                    imdb=float(row["imdb"]),
+                    votes=int(row["votes"]),
+                    meta_score=float(row["meta_score"]),
+                    gross=float(row["gross"]),
+                    description=row["description"],
+                    price=row["price"],
+                    certification=certification,
+                    genres=genres,
+                    stars=stars,
+                    directors=directors,
+                )
+                self.db_session.add(movie)
 
-        await db.flush()
-
-        movies = [
-            MovieModel(
-                name="Inception",
-                year=2010,
-                time=148,
-                imdb=8.8,
-                votes=2200000,
-                meta_score=74.0,
-                gross=836800000.0,
-                description="A thief who steals corporate secrets through dream-sharing technology.",
-                price=14.99,
-                certification=certifications["PG-13"],
-                genres=[genres["Action"], genres["Sci-Fi"]],
-                stars=[stars["Leonardo DiCaprio"], stars["Tom Hardy"]],
-                directors=[directors["Christopher Nolan"]]
-            ),
-            MovieModel(
-                name="Oppenheimer",
-                year=2023,
-                time=180,
-                imdb=8.4,
-                votes=650000,
-                meta_score=88.0,
-                gross=950000000.0,
-                description="The story of J. Robert Oppenheimer and the creation of the atomic bomb.",
-                price=19.99,
-                certification=certifications["R"],
-                genres=[genres["Drama"]],
-                stars=[stars["Cillian Murphy"], stars["Robert Downey Jr."]],
-                directors=[directors["Christopher Nolan"]]
-            ),
-            MovieModel(
-                name="Dune",
-                year=2021,
-                time=155,
-                imdb=8.0,
-                votes=750000,
-                meta_score=74.0,
-                gross=402000000.0,
-                description="A noble family becomes embroiled in a war for control over a desert planet.",
-                price=17.99,
-                certification=certifications["PG-13"],
-                genres=[genres["Sci-Fi"], genres["Drama"]],
-                stars=[stars["Scarlett Johansson"]],
-                directors=[directors["Denis Villeneuve"]]
-            ),
-            MovieModel(
-                name="Pulp Fiction",
-                year=1994,
-                time=154,
-                imdb=8.9,
-                votes=2100000,
-                meta_score=94.0,
-                gross=213900000.0,
-                description="The lives of two mob hitmen, a boxer, and others intertwine in Los Angeles.",
-                price=9.99,
-                certification=certifications["R"],
-                genres=[genres["Thriller"], genres["Comedy"]],
-                stars=[stars["Tom Hardy"]],
-                directors=[directors["Quentin Tarantino"]]
-            ),
-            MovieModel(
-                name="The Avengers",
-                year=2012,
-                time=143,
-                imdb=8.0,
-                votes=1400000,
-                meta_score=69.0,
-                gross=1519000000.0,
-                description="Earth's mightiest heroes assemble to stop an alien invasion.",
-                price=12.99,
-                certification=certifications["PG-13"],
-                genres=[genres["Action"]],
-                stars=[stars["Robert Downey Jr."], stars["Scarlett Johansson"]],
-                directors=[]
-            ),
-        ]
-        db.add_all(movies)
-
-        await db.commit()
+    async def seed(self) -> None:
+        await self.create_user_groups()
+        await self.create_admin_user()
+        await self.create_movies_from_csv()
+        await self.db_session.commit()
 
 
 async def main() -> None:
-    await create_user_groups()
-    await create_admin_user()
-    await create_test_movies()
+    settings = get_settings()
+
+    async with get_db_contextmanager() as session:
+        seeder = CSVDatabaseSeeder(
+            db_session=session,
+            settings=settings,
+            csv_file_path=settings.PATH_TO_MOVIES_CSV
+        )
+        await seeder.seed()
 
 
 if __name__ == "__main__":
