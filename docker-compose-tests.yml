@@ -1,6 +1,6 @@
 services:
   web:
-    restart: always
+    restart: "no"
     build:
       context: .
       dockerfile: ./docker/tests/Dockerfile
@@ -30,6 +30,7 @@ services:
     ports:
       - "8025:8025"
       - "1025:1025"
+    command: ["/go/bin/MailHog"]
     env_file:
       - ./envs/.env.tests
     networks:
@@ -37,7 +38,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: minio_cinema_test
+    container_name: minio-cinema-test
     command: server --console-address ":9001" /data
     ports:
       - "9000:9000"
