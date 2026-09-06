@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from sqlalchemy import StaticPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 
@@ -12,7 +13,13 @@ settings = get_settings()
 
 SQLITE_DATABASE_URL = f"sqlite+aiosqlite:///{settings.PATH_TO_DB}"
 
-sqlite_engine = create_async_engine(SQLITE_DATABASE_URL, echo=False)
+sqlite_engine = create_async_engine(
+    SQLITE_DATABASE_URL,
+    echo=False,
+    poolclass=StaticPool,
+    connect_args={"check_same_thread": False}
+
+)
 AsyncSQLiteSessionLocal = async_sessionmaker(
     bind=sqlite_engine,
     expire_on_commit=False
