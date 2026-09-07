@@ -269,7 +269,7 @@ async def login_user(
     result = await db.execute(stmt)
     user = result.scalars().first()
 
-    if not user or not user.verify_password(login_data.password, user._hashed_password):
+    if not user or not user.verify_password(login_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",
@@ -490,7 +490,7 @@ async def change_password(
             detail="Invalid token!"
         )
 
-    if not user.verify_password(change_password_data.old_password, user._hashed_password):
+    if not user.verify_password(change_password_data.old_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Old password is incorrect."

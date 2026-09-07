@@ -138,9 +138,8 @@ class UserModel(Base):
         validate_password(raw_password, )
         self._hashed_password = hash_password(raw_password)
 
-    @classmethod
-    def verify_password(cls, plain_password: str, hashed_password: str) -> bool:
-        return verify_password(plain_password, hashed_password)
+    def verify_password(self, plain_password: str) -> bool:
+        return verify_password(plain_password, self._hashed_password)
 
     @validates("email")
     def validate_email(self, key: str, value: str) -> str:
