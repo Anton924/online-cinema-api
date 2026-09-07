@@ -671,7 +671,7 @@ async def change_user_group(
 
 
 @router.patch(
-    "/admin/users/{user_id}/activate",
+    "/admin/users/{user_id}/activate-deactivate",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_200_OK,
     responses={
