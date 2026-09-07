@@ -824,3 +824,175 @@ async def test_read_me_invalid_token(client, jwt_manager):
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "Invalid token.", "Unexpected error message when the token's not valid"
 
+
+@pytest.mark.asyncio
+async def test_reset_password_success(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    reset_password_request_payload = {
+        "email": user.email
+    }
+
+    response = await client.post("/api/v1/accounts/password-reset/request", json=reset_password_request_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "If you are registered, you will receive an email with instructions.", "Unexpected success message."
+
+    stmt = select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    reset_token_record = result.scalars().first()
+
+    reset_password_complete_payload = {
+        "email": user.email,
+        "token": reset_token_record.token,
+        "new_password": "NewStrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/password-reset/complete", json=reset_password_complete_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "Password was successfully reset!", "Unexpected success message."
+    await db_session.refresh(user)
+    assert user.verify_password(reset_password_complete_payload["new_password"]) is True
+
+
+@pytest.mark.asyncio
+async def test_reset_password_invalid_email_or_token(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    reset_password_request_payload = {
+        "email": user.email
+    }
+
+    response = await client.post("/api/v1/accounts/password-reset/request", json=reset_password_request_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "If you are registered, you will receive an email with instructions.", "Unexpected success message."
+
+    stmt = select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    reset_token_record = result.scalars().first()
+
+    invalid_email_payload = {
+        "email": "invalidemail@example.com",
+        "token": reset_token_record.token,
+        "new_password": "NewStrongPassword123!"
+    }
+    response = await client.post("/api/v1/accounts/password-reset/complete", json=invalid_email_payload)
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid email or token.", "Unexpected error message."
+
+    invalid_token_payload = {
+        "email": "user@example.com",
+        "token": "this-is-not-a-valid-token",
+        "new_password": "NewStrongPassword123!"
+    }
+    response = await client.post("/api/v1/accounts/password-reset/complete", json=invalid_token_payload)
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid email or token.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_reset_password_expired_token(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    reset_password_request_payload = {
+        "email": user.email
+    }
+
+    response = await client.post("/api/v1/accounts/password-reset/request", json=reset_password_request_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "If you are registered, you will receive an email with instructions.", "Unexpected success message."
+
+    stmt = select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    reset_token_record = result.scalars().first()
+    reset_token_record.expires_at = datetime.now(timezone.utc) + timedelta(days=-2)
+    await db_session.commit()
+    await db_session.refresh(reset_token_record)
+
+    expired_token_payload = {
+        "email": user.email,
+        "token": reset_token_record.token,
+        "new_password": "NewStrongPassword123!"
+    }
+    response = await client.post("/api/v1/accounts/password-reset/complete", json=expired_token_payload)
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid email or token.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_reset_password_inactive_user(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    reset_password_request_payload = {
+        "email": user.email
+    }
+
+    response = await client.post("/api/v1/accounts/password-reset/request", json=reset_password_request_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "If you are registered, you will receive an email with instructions.", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_reset_password_commit_error(client, db_session, seed_user_groups):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    reset_password_request_payload = {
+        "email": user.email
+    }
+
+    response = await client.post("/api/v1/accounts/password-reset/request", json=reset_password_request_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "If you are registered, you will receive an email with instructions.", "Unexpected success message."
+
+    stmt = select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    reset_token_record = result.scalars().first()
+
+    reset_password_complete_payload = {
+        "email": user.email,
+        "token": reset_token_record.token,
+        "new_password": "NewStrongPassword123!"
+    }
+    with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post("/api/v1/accounts/password-reset/complete", json=reset_password_complete_payload)
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while resetting the password.", "Unexpected error message for a commit failure."
+
