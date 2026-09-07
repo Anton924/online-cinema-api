@@ -57,8 +57,8 @@ class Settings(BaseAppSettings):
 
 
 class TestingSettings(Settings):
-    SECRET_KEY_ACCESS: str = "SECRET_KEY_ACCESS"
-    SECRET_KEY_REFRESH: str = "SECRET_KEY_REFRESH"
+    SECRET_KEY_ACCESS: str = "test_secret_key_access_32_chars_min"
+    SECRET_KEY_REFRESH: str = "test_refresh_key_access_32_chars_min"
     JWT_SIGNING_ALGORITHM: str = "HS256"
 
     def model_post_init(self, __context: dict[str, Any] | None = None) -> None:
