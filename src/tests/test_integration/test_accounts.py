@@ -566,3 +566,123 @@ async def test_login_commit_error(client, db_session, seed_user_groups):
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while processing the request.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_refresh_token_success(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+    refresh_token_payload = {
+        "refresh_token": response.json()["refresh_token"]
+    }
+
+    response = await client.post("/api/v1/accounts/refresh", json=refresh_token_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    response_data = response.json()
+    assert response_data["access_token"] is not None, "Access token is missing or empty."
+    access_token_data = jwt_manager.decode_access_token(response_data["access_token"])
+    assert access_token_data["user_id"] == user.id, "Access token does not contain the correct user id."
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_expired(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+    stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == response.json()["refresh_token"])
+    result = await db_session.execute(stmt)
+    refresh_token = result.scalars().first()
+    refresh_token.token = jwt_manager.create_refresh_token(data={"user_id": user.id}, expires_delta=timedelta(days=-2))
+    refresh_token.expires_at = datetime.now(timezone.utc) + timedelta(days=-2)
+    await db_session.commit()
+    await db_session.refresh(refresh_token)
+
+    refresh_token_payload = {
+        "refresh_token": refresh_token.token
+    }
+
+    response = await client.post("/api/v1/accounts/refresh", json=refresh_token_payload)
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Token has expired.", "Unexpected error message for a refresh token missing from the database."
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_not_found(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+    stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == response.json()["refresh_token"])
+    result = await db_session.execute(stmt)
+    refresh_token = result.scalars().first()
+    await db_session.delete(refresh_token)
+    await db_session.commit()
+
+    refresh_token_payload = {
+        "refresh_token": refresh_token.token
+    }
+
+    response = await client.post("/api/v1/accounts/refresh", json=refresh_token_payload)
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Refresh token not found.", "Unexpected error message for a refresh token missing from the database."
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_user_not_found(client, db_session, seed_user_groups, jwt_manager):
+    token = jwt_manager.create_refresh_token(data={"user_id": 9999})
+    token_record = RefreshTokenModel(user_id=9999, expires_at=datetime.now(timezone.utc) + timedelta(days=1), token=token)
+    db_session.add(token_record)
+    await db_session.commit()
+
+    refresh_token_payload = {
+        "refresh_token": token
+    }
+
+    response = await client.post("/api/v1/accounts/refresh", json=refresh_token_payload)
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid Token", "Unexpected error message when the token's user no longer exists."
+
