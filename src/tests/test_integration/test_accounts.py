@@ -753,3 +753,74 @@ async def test_logout_token_not_found(client, db_session, seed_user_groups):
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "Refresh token not found.", "Unexpected error message for an unknown refresh token."
 
+
+@pytest.mark.asyncio
+async def test_read_me_success(client, db_session, seed_user_groups):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+    response = await client.get("/api/v1/accounts/me", headers={"Authorization": f'Bearer {response.json()["access_token"]}'})
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["id"] == user.id, "Returned id does not match the authenticated user."
+    assert response.json()["email"] == user.email, "Returned email does not match the authenticated user."
+
+
+@pytest.mark.asyncio
+async def test_read_me_invalid_header_format(client):
+    response = await client.get("/api/v1/accounts/me")
+    assert response.status_code == 401, f"Expected 401, got {response.status_code}"
+    assert response.json()["detail"] == "Authorization header is missing", "Unexpected error message for a missing Authorization header."
+
+
+@pytest.mark.asyncio
+async def test_read_me_expired_token(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user.id}, expires_delta=timedelta(days=-2))
+
+    response = await client.get("/api/v1/accounts/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Token has expired.", "Unexpected error message for an expired token."
+
+
+@pytest.mark.asyncio
+async def test_read_me_user_not_found(client, jwt_manager):
+    access_token = jwt_manager.create_access_token(data={"user_id": 9999})
+
+    response = await client.get("/api/v1/accounts/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "User not found", "Unexpected error message when the token's user no longer exists."
+
+
+@pytest.mark.asyncio
+async def test_read_me_invalid_token(client, jwt_manager):
+    access_token = "this-is-not-a-valid-token"
+
+    response = await client.get("/api/v1/accounts/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid token.", "Unexpected error message when the token's not valid"
+
