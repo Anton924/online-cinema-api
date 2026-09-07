@@ -2,10 +2,9 @@ from datetime import datetime, timezone, timedelta
 
 import pytest
 from unittest.mock import patch
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 
-from database.models.accounts import UserModel
-from database.models.accounts import ActivationTokenModel
+from database.models.accounts import UserModel, UserGroup, UserGroupEnum, RefreshTokenModel, ActivationTokenModel, PasswordResetTokenModel
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -27,7 +26,7 @@ async def test_register_success(client, db_session, seed_user_groups):
     created_user = result.scalars().first()
     assert created_user is not None, "User was not created in the database."
     assert created_user.email == payload["email"]
-    assert created_user.is_active == False, "Newly registered user should not be active yet."
+    assert created_user.is_active is False, "Newly registered user should not be active yet."
 
     stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == created_user.id)
     result = await db_session.execute(stmt)
@@ -72,7 +71,7 @@ async def test_register_invalid_password(client, seed_user_groups, invalid_passw
 
     response = await client.post("/api/v1/accounts/register", json=payload)
     assert response.status_code == 422, f"Expected 422, got {response.status_code}"
-    assert response.json()["detail"][0]["msg"] == expected_error, f"Expected error message: Value error, {expected_error}"
+    assert response.json()["detail"][0]["msg"] == expected_error, f"Expected error message: {expected_error}"
 
 
 @pytest.mark.asyncio
@@ -86,7 +85,7 @@ async def test_register_commit_error(client, seed_user_groups):
         response = await client.post("/api/v1/accounts/register", json=payload)
 
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
-        assert response.json()["detail"] == f"An error occurred during user creation.", "Unexpected error message for a commit failure."
+        assert response.json()["detail"] == "An error occurred during user creation.", "Unexpected error message for a commit failure."
 
 
 @pytest.mark.asyncio
@@ -107,6 +106,7 @@ async def test_activate_success(client, db_session, seed_user_groups):
     stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
     result = await db_session.execute(stmt)
     token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
 
     payload_activation = {
         "email": user.email,
@@ -117,7 +117,7 @@ async def test_activate_success(client, db_session, seed_user_groups):
     assert response.json()["message"] == "User account activated successfully.", "Unexpected success message."
 
     await db_session.refresh(user, ["is_active", "activation_token"])
-    assert user.is_active == True, "User should be active after successful activation."
+    assert user.is_active is True, "User should be active after successful activation."
     assert user.activation_token is None, "Activation token should be deleted after successful activation."
 
 
@@ -140,6 +140,7 @@ async def test_activate_expired_token(client, db_session, seed_user_groups):
     stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
     result = await db_session.execute(stmt)
     token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
     token_record.expires_at = datetime.now(timezone.utc) - timedelta(days=2)
     await db_session.commit()
 
@@ -174,9 +175,10 @@ async def test_activate_deleted_token(client, db_session, seed_user_groups):
     stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
     result = await db_session.execute(stmt)
     token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
 
     stmt = delete(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
-    result = await db_session.execute(stmt)
+    await db_session.execute(stmt)
     await db_session.commit()
 
     payload_activation = {
@@ -210,6 +212,7 @@ async def test_activate_already_active(client, db_session, seed_user_groups):
     stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
     result = await db_session.execute(stmt)
     token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
 
     payload_activation = {
         "email": user.email,
@@ -218,3 +221,4 @@ async def test_activate_already_active(client, db_session, seed_user_groups):
     response = await client.post("/api/v1/accounts/activate", json=payload_activation)
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "User account is already active.", "Unexpected error message for an already-active user."
+
