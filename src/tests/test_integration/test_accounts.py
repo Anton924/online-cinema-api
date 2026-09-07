@@ -222,3 +222,141 @@ async def test_activate_already_active(client, db_session, seed_user_groups):
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "User account is already active.", "Unexpected error message for an already-active user."
 
+
+@pytest.mark.asyncio
+async def test_activate_via_link_success(client, db_session, seed_user_groups):
+    payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/register", json=payload)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+
+    stmt = select(UserModel).where(UserModel.email == payload["email"])
+    result = await db_session.execute(stmt)
+    user = result.scalars().first()
+    assert user is not None, "User should exist in the database."
+    assert not user.is_active, "User should not be active before activation."
+
+    stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
+
+    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={user.email}&token={token_record.token}")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "User account activated successfully.", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_activate_via_link_unknown_email(client, db_session, seed_user_groups):
+    payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/register", json=payload)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+
+    stmt = select(UserModel).where(UserModel.email == payload["email"])
+    result = await db_session.execute(stmt)
+    user = result.scalars().first()
+    assert user is not None, "User should exist in the database."
+    assert not user.is_active, "User should not be active before activation."
+
+    stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
+    unknown_email = "unknowen@email.com"
+
+    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={unknown_email}&token={token_record.token}")
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == f"A user with this email {unknown_email} does not exist.", "Unexpected error message for an unknown email."
+
+
+@pytest.mark.asyncio
+async def test_activate_via_link_already_active(client, db_session, seed_user_groups):
+    payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/register", json=payload)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+
+    stmt = select(UserModel).where(UserModel.email == payload["email"])
+    result = await db_session.execute(stmt)
+    user = result.scalars().first()
+    assert user is not None, "User should exist in the database."
+    assert not user.is_active, "User should not be active before activation."
+    user.is_active = True
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
+
+    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={user.email}&token={token_record.token}")
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "User account is already active.", "Unexpected error message for an already-active user."
+
+
+@pytest.mark.asyncio
+async def test_activate_via_link_expired_token(client, db_session, seed_user_groups):
+    payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/register", json=payload)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+
+    stmt = select(UserModel).where(UserModel.email == payload["email"])
+    result = await db_session.execute(stmt)
+    user = result.scalars().first()
+    assert user is not None, "User should exist in the database."
+    assert not user.is_active, "User should not be active before activation."
+
+    stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
+    token_record.expires_at = datetime.now(timezone.utc) - timedelta(days=2)
+    await db_session.commit()
+
+    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={user.email}&token={token_record.token}")
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid or expired activation token.", "Unexpected error message for an expired/deleted token."
+
+
+@pytest.mark.asyncio
+async def test_activate_via_link_deleted_token(client, db_session, seed_user_groups):
+    payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/register", json=payload)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+
+    stmt = select(UserModel).where(UserModel.email == payload["email"])
+    result = await db_session.execute(stmt)
+    user = result.scalars().first()
+    assert user is not None, "User should exist in the database."
+    assert not user.is_active, "User should not be active before activation."
+
+    stmt = select(ActivationTokenModel).where(ActivationTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    token_record = result.scalars().first()
+    assert token_record is not None, "Activation token was not found for the user."
+    await db_session.delete(token_record)
+    await db_session.commit()
+
+    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={user.email}&token={token_record.token}")
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid or expired activation token.", "Unexpected error message for an expired/deleted token."
+
