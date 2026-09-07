@@ -1240,3 +1240,157 @@ async def test_change_user_group_target_not_found(client, db_session, seed_user_
     assert response.status_code == 404, f"Expected 404, got {response.status_code}"
     assert response.json()["detail"] == f"User with id {target_user_id} not found.", "Unexpected error message."
 
+
+@pytest.mark.asyncio
+async def test_reactivate_user_success(client, db_session, seed_user_groups, jwt_manager):
+    group_user = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    target_user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_user.id
+    )
+    db_session.add(target_user)
+
+    group_admin = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))).scalars().first()
+    user_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_admin.id
+    )
+    user_admin.is_active = True
+    db_session.add(user_admin)
+    await db_session.commit()
+
+    payload = {
+        "is_active": True
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_admin.id})
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user.id}/activate-deactivate", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "User was successfully activated.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_deactivate_user_success(client, db_session, seed_user_groups, jwt_manager):
+    group_user = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    target_user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_user.id
+    )
+    target_user.is_active = True
+    db_session.add(target_user)
+
+    group_admin = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))).scalars().first()
+    user_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_admin.id
+    )
+    user_admin.is_active = True
+    db_session.add(user_admin)
+    await db_session.commit()
+
+    payload = {
+        "is_active": False
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_admin.id})
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user.id}/activate-deactivate", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "User was successfully deactivated.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_toggle_active_or_inactive_already_in_state(client, db_session, seed_user_groups, jwt_manager):
+    group_user = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    target_user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_user.id
+    )
+    db_session.add(target_user)
+
+    group_admin = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))).scalars().first()
+    user_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_admin.id
+    )
+    user_admin.is_active = True
+    db_session.add(user_admin)
+    await db_session.commit()
+
+    payload = {
+        "is_active": False
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_admin.id})
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user.id}/activate-deactivate", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "User account is already inactive.", "Unexpected error message."
+
+    target_user.is_active = True
+    await db_session.commit()
+
+    payload = {
+        "is_active": True
+    }
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user.id}/activate-deactivate", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "User account is already active.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_toggle_active_forbidden(client, db_session, seed_user_groups, jwt_manager):
+    group_user = (
+        await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user_false_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_user.id
+    )
+    user_false_admin.is_active = True
+    db_session.add(user_false_admin)
+    await db_session.commit()
+
+    payload = {
+        "is_active": True
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_false_admin.id})
+    target_user_id = 9999
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user_id}/activate-deactivate", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
+    assert response.json()["detail"] == "You do not have permission to perform this action.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_toggle_active_not_found(client, db_session, seed_user_groups, jwt_manager):
+    group_admin = (
+        await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))).scalars().first()
+    user_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_admin.id
+    )
+    user_admin.is_active = True
+    db_session.add(user_admin)
+    await db_session.commit()
+
+    payload = {
+        "is_active": True
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_admin.id})
+    target_user_id = 9999
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user_id}/activate-deactivate", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"User with id {target_user_id} not found.", "Unexpected error message."
