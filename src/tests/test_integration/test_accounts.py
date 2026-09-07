@@ -686,3 +686,70 @@ async def test_refresh_token_user_not_found(client, db_session, seed_user_groups
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "Invalid Token", "Unexpected error message when the token's user no longer exists."
 
+
+@pytest.mark.asyncio
+async def test_logout_success(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+    logout_token_payload = {
+        "refresh_token": response.json()["refresh_token"]
+    }
+
+    response = await client.post("/api/v1/accounts/logout", json=logout_token_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    await db_session.refresh(user, ["refresh_tokens"])
+    response_data = response.json()
+    assert response_data["message"] == "You have been successfully log out", "Unexpected success message."
+    assert user.refresh_tokens == [], "Refresh token row should be deleted after logout."
+
+
+@pytest.mark.asyncio
+async def test_logout_token_not_found(client, db_session, seed_user_groups):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+    stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == response.json()["refresh_token"])
+    result = await db_session.execute(stmt)
+    refresh_token = result.scalars().first()
+    await db_session.delete(refresh_token)
+    await db_session.commit()
+
+    logout_token_payload = {
+        "refresh_token": response.json()["refresh_token"]
+    }
+
+    response = await client.post("/api/v1/accounts/logout", json=logout_token_payload)
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Refresh token not found.", "Unexpected error message for an unknown refresh token."
+
