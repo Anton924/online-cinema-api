@@ -228,17 +228,18 @@ async def resend_activation_token(
             detail="User account is already active."
         )
 
-    stmt = select(ActivationTokenModel).options(
-        joinedload(ActivationTokenModel.user)
-    ).join(UserModel).where(
+    stmt = select(ActivationTokenModel).join(
+        UserModel
+    ).where(
         UserModel.email == user.email
     )
 
-    result = await db.execute(stmt)
-    invalid_token = result.scalars().one_or_none()
-    if invalid_token:
-        await db.delete(invalid_token)
-        await db.commit()
+    result = await db.scalars(stmt)
+    tokens = result.all()
+    for token in tokens:
+        await db.delete(token)
+
+    await db.commit()
 
     activation_token = ActivationTokenModel(user_id=user.id)
     db.add(activation_token)
