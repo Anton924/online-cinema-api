@@ -996,3 +996,135 @@ async def test_reset_password_commit_error(client, db_session, seed_user_groups)
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while resetting the password.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_change_password_success(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    access_token = jwt_manager.create_access_token({"user_id": user.id})
+
+    payload = {
+        "old_password": "StrongPassword123!",
+        "new_password": "NewStrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/change-password", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "Password was changed successfully!", "Unexpected success message."
+    await db_session.refresh(user)
+    assert user.verify_password(payload["new_password"]) is True, "Password was not updated in the database."
+
+
+@pytest.mark.asyncio
+async def test_change_password_wrong_old_password(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    access_token = jwt_manager.create_access_token({"user_id": user.id})
+
+    payload = {
+        "old_password": "WrongOldPassword123!",
+        "new_password": "NewStrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/change-password", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Old password is incorrect.", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_change_password_invalid_token(client):
+    payload = {
+        "old_password": "StrongPassword123!",
+        "new_password": "NewStrongPassword123!"
+    }
+
+    access_token = "this-is-not-a-valid-token"
+
+    response = await client.post("/api/v1/accounts/change-password", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid token.", "Unexpected error message when the token's not valid"
+
+
+@pytest.mark.asyncio
+async def test_change_password_expired_token(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    payload = {
+        "old_password": "StrongPassword123!",
+        "new_password": "NewStrongPassword123!"
+    }
+
+    access_token = jwt_manager.create_access_token({"user_id": user.id}, expires_delta=timedelta(days=-2))
+
+    response = await client.post("/api/v1/accounts/change-password", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == "Token has expired.", "Unexpected error message when the token's expired"
+
+
+@pytest.mark.asyncio
+async def test_change_password_user_not_found(client, db_session, seed_user_groups, jwt_manager):
+    access_token = jwt_manager.create_access_token({"user_id": 9999})
+
+    payload = {
+        "old_password": "StrongPassword123!",
+        "new_password": "NewStrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/change-password", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+
+    assert response.status_code == 401, f"Expected 401, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid token!", "Unexpected error message when the token's user no longer exists."
+
+
+@pytest.mark.asyncio
+async def test_change_password_commit_error(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    payload = {
+        "old_password": "StrongPassword123!",
+        "new_password": "NewStrongPassword123!"
+    }
+
+    access_token = jwt_manager.create_access_token({"user_id": user.id})
+    with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post("/api/v1/accounts/change-password", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while resetting the password.", "Unexpected error message for a commit failure."
+
