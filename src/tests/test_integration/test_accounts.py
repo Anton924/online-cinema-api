@@ -460,3 +460,109 @@ async def test_resend_activation_already_active(client, db_session, seed_user_gr
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "User account is already active.", "Unexpected error message for an already-active user."
 
+
+@pytest.mark.asyncio
+async def test_login_success(client, db_session, seed_user_groups, jwt_manager):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    response_data = response.json()
+    assert response_data["access_token"] is not None, "Access token is missing or empty."
+    assert response_data["refresh_token"] is not None, "Refresh token is missing or empty."
+    access_token_data = jwt_manager.decode_access_token(response_data["access_token"])
+    assert access_token_data["user_id"] == user.id, "Access token does not contain the correct user id."
+    refresh_token_data = jwt_manager.decode_refresh_token(response_data["refresh_token"])
+    assert refresh_token_data["user_id"] == user.id, "Refresh token does not contain the correct user id."
+
+    stmt = select(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id)
+    result = await db_session.execute(stmt)
+    refresh_token_record = result.scalars().first()
+    assert refresh_token_record is not None, "Refresh token was not stored in the database."
+    assert refresh_token_record.token == response_data["refresh_token"], "Stored refresh token does not match the returned one."
+
+    now = datetime.now(timezone.utc)
+
+    if refresh_token_record.expires_at.tzinfo is None:
+        refresh_token_record.expires_at = refresh_token_record.expires_at.replace(tzinfo=timezone.utc)
+
+    assert refresh_token_record.expires_at > now, "Refresh token should not already be expired."
+
+
+@pytest.mark.asyncio
+async def test_login_invalid_credentials(client, db_session, seed_user_groups):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    invalid_login_payload = {
+        "email": "invaliduser@example.com",
+        "password": "InvalidStrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=invalid_login_payload)
+    assert response.status_code == 401, f"Expected 401, got {response.status_code}"
+    assert response.json()["detail"] == "Invalid email or password.", "Unexpected error message for invalid credentials."
+
+
+@pytest.mark.asyncio
+async def test_login_inactive_user(client, db_session, seed_user_groups):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload = {
+        "email": "user@example.com",
+        "password": "StrongPassword123!"
+    }
+
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
+    assert response.json()["detail"] == "User account is not activated.", "Unexpected error message for an inactive user."
+
+
+@pytest.mark.asyncio
+async def test_login_commit_error(client, db_session, seed_user_groups):
+    group = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+        login_payload = {
+            "email": "user@example.com",
+            "password": "StrongPassword123!"
+        }
+        response = await client.post("/api/v1/accounts/login/", json=login_payload)
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while processing the request.", "Unexpected error message for a commit failure."
+
