@@ -78,7 +78,7 @@ class UserModel(Base):
         cascade="all, delete-orphan"
     )
 
-    refresh_token: Mapped[Optional["RefreshTokenModel"]] = relationship(
+    refresh_tokens: Mapped[List["RefreshTokenModel"]] = relationship(
         "RefreshTokenModel",
         back_populates="user",
         cascade="all, delete-orphan"
@@ -210,7 +210,7 @@ class PasswordResetTokenModel(TokenBaseModel):
 class RefreshTokenModel(TokenBaseModel):
     __tablename__ = "refresh_tokens"
 
-    user: Mapped["UserModel"] = relationship("UserModel", back_populates="refresh_token")
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="refresh_tokens")
 
     @classmethod
     def create(cls, user_id: int, token: str, days_valid: int) -> "RefreshTokenModel":
