@@ -1128,3 +1128,115 @@ async def test_change_password_commit_error(client, db_session, seed_user_groups
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while resetting the password.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_change_user_group_success(client, db_session, seed_user_groups, jwt_manager):
+    group_user = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    target_user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_user.id
+    )
+    db_session.add(target_user)
+
+    group_admin = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))).scalars().first()
+    user_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_admin.id
+    )
+    user_admin.is_active = True
+    db_session.add(user_admin)
+    await db_session.commit()
+
+    payload = {
+        "group": UserGroupEnum.MODERATOR
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_admin.id})
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user.id}/group", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f'User group was successfully changed to {payload["group"].value!r}.', "Unexpected success message."
+    await db_session.refresh(target_user, ["group_id", "group"])
+    assert target_user.group.name == UserGroupEnum.MODERATOR, "Target user's group was not updated in the database."
+
+
+@pytest.mark.asyncio
+async def test_change_user_group_forbidden(client, db_session, seed_user_groups, jwt_manager):
+    group_user = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    user_false_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_user.id
+    )
+    user_false_admin.is_active = True
+    db_session.add(user_false_admin)
+    await db_session.commit()
+
+    payload = {
+        "group": UserGroupEnum.MODERATOR
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_false_admin.id})
+    target_user_id = 9999
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user_id}/group", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
+    assert response.json()["detail"] == "You do not have permission to perform this action.", "Unexpected error message for a non-admin caller."
+
+
+@pytest.mark.asyncio
+async def test_change_user_group_already_in_group(client, db_session, seed_user_groups, jwt_manager):
+    group_user = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.USER))).scalars().first()
+    target_user = UserModel.create(
+        email="user@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_user.id
+    )
+    db_session.add(target_user)
+
+    group_admin = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))).scalars().first()
+    user_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_admin.id
+    )
+    user_admin.is_active = True
+    db_session.add(user_admin)
+    await db_session.commit()
+
+    payload = {
+        "group": UserGroupEnum.USER
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_admin.id})
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user.id}/group", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+    assert response.json()["detail"] == f'User is already in the {payload["group"].value!r} group.', "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_change_user_group_target_not_found(client, db_session, seed_user_groups, jwt_manager):
+    group_admin = (await db_session.execute(select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN))).scalars().first()
+    user_admin = UserModel.create(
+        email="useradmin@example.com",
+        raw_password="StrongPassword123!",
+        group_id=group_admin.id
+    )
+    user_admin.is_active = True
+    db_session.add(user_admin)
+    await db_session.commit()
+
+    payload = {
+        "group": UserGroupEnum.MODERATOR
+    }
+
+    access_token = jwt_manager.create_access_token(data={"user_id": user_admin.id})
+    target_user_id = 9999
+
+    response = await client.patch(f"/api/v1/accounts/admin/users/{target_user_id}/group", json=payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"User with id {target_user_id} not found.", "Unexpected error message."
+
