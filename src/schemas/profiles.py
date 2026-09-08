@@ -22,7 +22,7 @@ class UserProfileRequestSchema(BaseModel):
         first_name: str | None = Form(None, examples=["John"]),
         last_name: str | None = Form(None, examples=["Doe"]),
         avatar: UploadFile | None | str = File(None),
-        gender: GenderEnum | None = Form(None, examples=["male"]),
+        gender: GenderEnum | None | str = Form(None, examples=["male"]),
         date_of_birth: date | None | str = Form(None, examples=["1990-05-20"]),
         info: str | None = Form(None, examples=["Movie enthusiast and part-time critic."]),
     ) -> "UserProfileRequestSchema":
@@ -63,7 +63,7 @@ class UserProfileRequestSchema(BaseModel):
 
     @field_validator("gender", mode="before")
     @classmethod
-    def validate_gender(cls, value: str) -> GenderEnum | None:
+    def validate_gender(cls, value: str | GenderEnum) -> GenderEnum | None:
         if not value or value is None:
             return None
         return validate_gender(value)
