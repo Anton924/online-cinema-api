@@ -235,3 +235,107 @@ async def test_read_own_profile_not_found(client, db_session, jwt_manager, seed_
     assert response.status_code == 404, f"Expected 404, got {response.status_code}"
     assert response.json()["detail"] == "Profile not found.", "Unexpected error message for a missing profile."
 
+
+@pytest.mark.asyncio
+async def test_update_profile_success(client, db_session, jwt_manager, seed_user_groups):
+    profile_data = {
+        "first_name": "John",
+        "last_name": "Doe",
+        "gender": "man",
+        "date_of_birth": date(year=1990, month=5, day=20),
+        "info": "Movie enthusiast and part-time critic."
+    }
+    update_data = {
+        "first_name": "Jane",
+        "last_name": "Smith",
+        "gender": "woman",
+        "date_of_birth": "1995-03-15",
+        "info": "Now writes reviews full-time."
+    }
+
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_profile_for_user(db_session=db_session, user=user, **profile_data)
+    response = await client.patch("/api/v1/profiles/me", json=update_data, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["first_name"] == update_data["first_name"], "Updated field was not returned."
+    assert response.json()["last_name"] == update_data["last_name"], "Updated field was not returned."
+    assert response.json()["gender"] == update_data["gender"], "Updated field was not returned."
+    assert response.json()["date_of_birth"] == update_data["date_of_birth"], "Updated field was not returned."
+    assert response.json()["info"] == update_data["info"], "Updated field was not returned."
+    assert response.json()["avatar"] is None, "Avatar should be null when none was uploaded."
+
+
+@pytest.mark.asyncio
+async def test_update_profile_partial(client, db_session, jwt_manager, seed_user_groups):
+    profile_data = {
+        "first_name": "John",
+        "last_name": "Doe",
+        "gender": "man",
+        "date_of_birth": date(year=1990, month=5, day=20),
+        "info": "Movie enthusiast and part-time critic."
+    }
+    update_data = {
+        "first_name": "Jane",
+        "last_name": "Smith",
+    }
+
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_profile_for_user(db_session=db_session, user=user, **profile_data)
+    response = await client.patch("/api/v1/profiles/me", json=update_data, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["first_name"] == update_data["first_name"], "Sent field was not updated."
+    assert response.json()["last_name"] == update_data["last_name"], "Sent field was not updated."
+    assert response.json()["gender"] == profile_data["gender"], "Field that was not sent should stay unchanged."
+    assert response.json()["date_of_birth"] == profile_data["date_of_birth"].isoformat(), "Field that was not sent should stay unchanged."
+    assert response.json()["info"] == profile_data["info"], "Field that was not sent should stay unchanged."
+    assert response.json()["avatar"] is None, "Avatar should be null when none was uploaded."
+
+
+@pytest.mark.asyncio
+async def test_update_profile_not_found(client, db_session, jwt_manager, seed_user_groups):
+    update_data = {
+        "first_name": "Jane",
+        "last_name": "Smith",
+    }
+
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    response = await client.patch("/api/v1/profiles/me", json=update_data, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "Profile not found.", "Unexpected error message for a missing profile."
+
+
+@pytest.mark.asyncio
+async def test_update_profile_invalid_gender(client, db_session, jwt_manager, seed_user_groups):
+    profile_data = {
+        "first_name": "John",
+        "last_name": "Doe",
+        "gender": "man",
+        "date_of_birth": date(year=1990, month=5, day=20),
+        "info": "Movie enthusiast and part-time critic."
+    }
+    update_data = {
+        "gender": "other",
+    }
+
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_profile_for_user(db_session=db_session, user=user, **profile_data)
+    response = await client.patch("/api/v1/profiles/me", json=update_data, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}"
+    assert "Gender must be one of" in str(response.json()), "Unexpected validation error for an invalid gender."
+
+
+
+@pytest.mark.asyncio
+async def test_update_profile_commit_error(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    update_data = {
+        "first_name": "Jane",
+        "last_name": "Smith",
+    }
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_profile_for_user(db_session=db_session, user=user)
+
+    with patch("routes.profiles.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.patch("/api/v1/profiles/me", json=update_data, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while updating the profile.", "Unexpected error message for a commit failure."
+
