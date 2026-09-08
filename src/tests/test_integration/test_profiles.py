@@ -339,3 +339,83 @@ async def test_update_profile_commit_error(client, db_session, jwt_manager, s3_s
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while updating the profile.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_update_avatar_success(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    profile_data = {
+        "first_name": "John",
+        "last_name": "Doe",
+        "gender": "man",
+        "date_of_birth": date(year=1990, month=5, day=20),
+        "info": "Movie enthusiast and part-time critic."
+    }
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_profile_for_user(db_session=db_session, user=user, **profile_data)
+
+    img_bytes = await make_image_bytes()
+    new_file = {"avatar": ("new_avatar.jpg", img_bytes, "image/jpeg")}
+    new_avatar_key = f"avatar/{user.id}.jpeg"
+    new_avatar_url = await s3_storage_fake.get_file_url(file_name=new_avatar_key)
+    response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["avatar"] == new_avatar_url, "Returned avatar URL does not match the fake storage key."
+
+
+
+@pytest.mark.asyncio
+async def test_update_avatar_profile_not_found(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    img_bytes = await make_image_bytes()
+    new_file = {"avatar": ("new_avatar.jpg", img_bytes, "image/jpeg")}
+    response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "Profile not found.", "Unexpected error message for a missing profile."
+
+
+@pytest.mark.asyncio
+async def test_update_avatar_invalid_image_size(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    new_file = {"avatar": ("new_avatar.jpg", b"0" * (1024 * 1024 + 1), "image/jpeg")}
+    response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}"
+    assert "Image size exceeds 1 MB" in str(response.json()), "Unexpected validation error for an oversized avatar."
+
+
+@pytest.mark.asyncio
+async def test_update_avatar_invalid_image_format(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    img_bytes = await make_image_bytes(fmt="GIF")
+    new_file = {"avatar": ("new_avatar.gif", img_bytes, "image/gif")}
+    response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}"
+    assert "Unsupported image format" in str(response.json()), "Unexpected validation error for an unsupported format."
+
+
+@pytest.mark.asyncio
+async def test_update_avatar_upload_error(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_profile_for_user(db_session=db_session, user=user)
+
+    img_bytes = await make_image_bytes()
+    new_file = {"avatar": ("new_avatar.jpeg", img_bytes, "image/jpeg")}
+    with patch.object(FakeS3Storage, "upload_file", side_effect=S3FileUploadError):
+        response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "Failed to upload avatar. Please try again later.", "Unexpected error message for a failed avatar upload."
+
+
+@pytest.mark.asyncio
+async def test_update_avatar_commit_error(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_profile_for_user(db_session=db_session, user=user)
+
+    img_bytes = await make_image_bytes()
+    new_file = {"avatar": ("new_avatar.jpeg", img_bytes, "image/jpeg")}
+    with patch("routes.profiles.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while saving the avatar. Please try again later.", "Unexpected error message for a commit failure."
+
