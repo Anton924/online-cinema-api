@@ -21,6 +21,9 @@ from database import get_db_contextmanager
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from database.models.accounts import UserGroup, UserModel, UserGroupEnum, UserProfileModel
+from database.models.movies import CertificationModel, MovieModel
+from database.models.carts import CartModel, CartItem
+from database.models.orders import StatusOrderEnum, OrderModel, OrderItemModel
 
 
 def pytest_configure(config):
@@ -147,6 +150,48 @@ async def create_active_user_with_token(db_session, jwt_manager, group=UserGroup
     await db_session.refresh(user)
     access_token = jwt_manager.create_access_token(data={"user_id": user.id})
     return user, access_token
+
+
+async def create_movie(db_session, name="Inception", price=9.99, certification_name="R"):
+    certification = CertificationModel(name=certification_name)
+    db_session.add(certification)
+    await db_session.flush()
+    movie = MovieModel(
+        name=name,
+        year=2010,
+        time=148,
+        imdb=8.8,
+        votes=100,
+        description="A mind-bending thriller.",
+        price=price,
+        certification_id=certification.id
+    )
+    db_session.add(movie)
+    await db_session.commit()
+    await db_session.refresh(movie)
+    return movie
+
+
+async def add_item_to_cart_directly(db_session, user, movie) -> CartModel:
+    cart = (await db_session.execute(select(CartModel).where(CartModel.user_id == user.id))).scalars().first()
+    if not cart:
+        cart = CartModel(user_id=user.id)
+        db_session.add(cart)
+        await db_session.flush()
+    db_session.add(CartItem(cart_id=cart.id, movie_id=movie.id))
+    await db_session.commit()
+    await db_session.refresh(cart)
+    return cart
+
+
+async def create_order_directly(db_session, user, movie, status=StatusOrderEnum.PAID) -> OrderModel:
+    order = OrderModel(user_id=user.id, status=status, order_sum=movie.price)
+    db_session.add(order)
+    await db_session.flush()
+    db_session.add(OrderItemModel(order_id=order.id, movie_id=movie.id, price_at_order=movie.price))
+    await db_session.commit()
+    await db_session.refresh(order)
+    return order
 
 
 async def make_image_bytes(fmt="JPEG", size=(10, 10)) -> bytes:
