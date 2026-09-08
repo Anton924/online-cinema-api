@@ -142,3 +142,39 @@ async def test_remove_from_cart_commit_error(client, db_session, jwt_manager, se
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while removing the movie from cart.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_view_cart_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie_1 = await create_movie(db_session=db_session)
+    movie_2 = await create_movie(db_session=db_session, name="Dune", certification_name="M")
+
+    await add_item_to_cart_directly(db_session=db_session, user=user, movie=movie_1)
+    await add_item_to_cart_directly(db_session=db_session, user=user, movie=movie_2)
+    response = await client.get(f"/api/v1/carts", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["total_items"] == 2, "Unexpected item count in the cart."
+    assert float(response.json()["total_price"]) == float(movie_1.price + movie_2.price), "Unexpected total price."
+
+
+@pytest.mark.asyncio
+async def test_view_cart_no_cart(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.get(f"/api/v1/carts", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "You have no movies in your cart!", "Unexpected message when no cart exists."
+
+
+@pytest.mark.asyncio
+async def test_view_cart_empty_cart_row(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    cart = CartModel(user_id=user.id)
+    db_session.add(cart)
+    await db_session.flush()
+
+    response = await client.get(f"/api/v1/carts", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "You have no movies in your cart!", "Unexpected message when no cart exists."
+
