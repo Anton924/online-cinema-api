@@ -434,3 +434,40 @@ async def test_cancel_order_commit_error(client, db_session, jwt_manager, seed_u
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while canceling the order.", "Unexpected error message for a commit failure."
 
+
+
+@pytest.mark.asyncio
+async def test_view_user_orders_success(client, db_session, jwt_manager, seed_user_groups):
+    target_user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    order = await create_order_directly(db_session=db_session, user=target_user, movie=movie, status=StatusOrderEnum.PENDING)
+
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN, email="admin@example.com")
+    response = await client.get(f"/api/v1/orders/users/{target_user.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["user_email"] == target_user.email, "Returned orders are not for the requested user."
+    assert len(response.json()["orders"]) == 1, "Unexpected number of orders returned."
+
+
+@pytest.mark.asyncio
+async def test_view_user_orders_forbidden(client, db_session, jwt_manager, seed_user_groups):
+    target_user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    await create_order_directly(db_session=db_session, user=target_user, movie=movie, status=StatusOrderEnum.PENDING)
+
+    fake_admin, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER, email="fake_admin@example.com")
+    response = await client.get(f"/api/v1/orders/users/{target_user.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
+    assert response.json()["detail"] == "You do not have permission to perform this action.", "Unexpected error message for a non-privileged caller."
+
+
+@pytest.mark.asyncio
+async def test_view_user_orders_user_not_found(client, db_session, jwt_manager, seed_user_groups):
+    fake_user_id = 9999
+
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN, email="admin@example.com")
+    response = await client.get(f"/api/v1/orders/users/{fake_user_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"User with id {fake_user_id} not found.", "Unexpected error message for a missing user."
