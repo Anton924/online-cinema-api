@@ -419,3 +419,74 @@ async def test_update_avatar_commit_error(client, db_session, jwt_manager, s3_st
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while saving the avatar. Please try again later.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_delete_avatar_success(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    img_bytes = await make_image_bytes()
+    file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    avatar_key = f"avatar/{user.id}.jpeg"
+    avatar_url = await s3_storage_fake.get_file_url(file_name=avatar_key)
+    response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"}, files=file)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.json()["avatar"] == avatar_url, "Returned avatar URL does not match the fake storage key."
+
+    response = await client.delete("/api/v1/profiles/me/avatar", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["avatar"] is None, "Avatar should be null after deletion."
+    profile = (await db_session.execute(select(UserProfileModel).where(UserProfileModel.user_id == user.id))).scalars().first()
+    assert profile.avatar is None, "Avatar key should be cleared in the database."
+
+
+@pytest.mark.asyncio
+async def test_delete_avatar_profile_not_found(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.delete("/api/v1/profiles/me/avatar", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "Profile not found.", "Unexpected error message for a missing profile."
+
+
+@pytest.mark.asyncio
+async def test_delete_avatar_not_set(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+
+    response = await client.delete("/api/v1/profiles/me/avatar", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "Avatar not found.", "Unexpected error message when no avatar is set."
+
+
+@pytest.mark.asyncio
+async def test_delete_avatar_s3_error(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    img_bytes = await make_image_bytes()
+    file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    avatar_key = f"avatar/{user.id}.jpeg"
+    avatar_url = await s3_storage_fake.get_file_url(file_name=avatar_key)
+    response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"}, files=file)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.json()["avatar"] == avatar_url, "Returned avatar URL does not match the fake storage key."
+
+    with patch.object(FakeS3Storage, "delete_file", side_effect=S3FileUploadError):
+        response = await client.delete("/api/v1/profiles/me/avatar", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "Failed to delete avatar. Please try again later.", "Unexpected error message for a failed avatar deletion."
+
+
+@pytest.mark.asyncio
+async def test_delete_avatar_commit_error(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
+    img_bytes = await make_image_bytes()
+    file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    avatar_key = f"avatar/{user.id}.jpeg"
+    avatar_url = await s3_storage_fake.get_file_url(file_name=avatar_key)
+    response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"}, files=file)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.json()["avatar"] == avatar_url, "Returned avatar URL does not match the fake storage key."
+
+    with patch("routes.profiles.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete("/api/v1/profiles/me/avatar", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while deleting the avatar.", "Unexpected error message for a commit failure."
