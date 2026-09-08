@@ -100,6 +100,29 @@ class UserProfileRequestUpdateSchema(BaseModel):
     date_of_birth: date | None = Field(default=None, examples=["1990-05-20"])
     info: str | None = Field(default=None, examples=["Movie enthusiast and part-time critic."])
 
+    @field_validator("first_name", "last_name", mode="before")
+    @classmethod
+    def validate_name(cls, value: str) -> str | None:
+        if not value or value is None:
+            return None
+        return validate_name(value)
+
+    @field_validator("gender", mode="before")
+    @classmethod
+    def validate_gender(cls, value: GenderEnum) -> GenderEnum | None:
+        if not value or value is None:
+            return None
+        return validate_gender(value)
+
+    @field_validator("date_of_birth", mode="before")
+    @classmethod
+    def validate_date_of_birth(cls, value: date | str | None) -> date | None:
+        if not value or value is None:
+            return None
+        if isinstance(value, str):
+            value = date.fromisoformat(value)
+        return validate_birth_date(value)
+
 
 class UserProfileRequestUpdateAvatarSchema(BaseModel):
     avatar: UploadFile
