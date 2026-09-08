@@ -216,3 +216,48 @@ async def test_clear_cart_commit_error(client, db_session, jwt_manager, seed_use
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while clearing the cart.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_view_user_cart_success(client, db_session, jwt_manager, seed_user_groups):
+    target_user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    await add_item_to_cart_directly(db_session=db_session, user=target_user, movie=movie)
+
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN, email="admin@example.com")
+    response = await client.get(f"/api/v1/carts/users/{target_user.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["user_email"] == target_user.email, "Returned cart is not for the requested user."
+
+
+@pytest.mark.asyncio
+async def test_view_user_cart_forbidden(client, db_session, jwt_manager, seed_user_groups):
+    target_user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    await add_item_to_cart_directly(db_session=db_session, user=target_user, movie=movie)
+
+    fake_admin, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER, email="fake_admin@example.com")
+    response = await client.get(f"/api/v1/carts/users/{target_user.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
+    assert response.json()["detail"] == "You do not have permission to perform this action.", "Unexpected error message for a non-privileged caller."
+
+
+@pytest.mark.asyncio
+async def test_view_user_cart_user_not_found(client, db_session, jwt_manager, seed_user_groups):
+    fake_user_id = 9999
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN, email="admin@example.com")
+    response = await client.get(f"/api/v1/carts/users/{fake_user_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"User with id {fake_user_id} not found.", "Unexpected error message for a missing user."
+
+
+@pytest.mark.asyncio
+async def test_view_user_cart_empty(client, db_session, jwt_manager, seed_user_groups):
+    target_user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN, email="admin@example.com")
+    response = await client.get(f"/api/v1/carts/users/{target_user.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"User {target_user.email!r} has no movies in the cart.", "Unexpected message for an empty target cart."
+
