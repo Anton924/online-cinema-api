@@ -132,9 +132,18 @@ class UserProfileRequestUpdateAvatarSchema(BaseModel):
             cls,
             avatar: UploadFile
     ) -> "UserProfileRequestUpdateAvatarSchema":
-        return cls(
-            avatar=avatar
-        )
+        try:
+            return cls(
+                avatar=avatar
+            )
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=[
+                    {"field": error["loc"][-1], "message": error["msg"]}
+                    for error in e.errors()
+                ]
+            ) from e
 
     @field_validator("avatar")
     @classmethod
