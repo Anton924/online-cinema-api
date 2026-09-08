@@ -1,4 +1,7 @@
+import io
+
 import pytest_asyncio
+from PIL import Image
 
 from database import (
     reset_database
@@ -8,7 +11,7 @@ from httpx import AsyncClient, ASGITransport
 from database.populate import CSVDatabaseSeeder
 from main import app
 from config.dependencies import get_settings
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from tests.doubles.stubs.emails import StubEmailSender
 from tests.doubles.fakes.storage import FakeS3Storage
@@ -17,7 +20,7 @@ from storages.s3 import S3StorageClient
 from database import get_db_contextmanager
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
-from database.models.accounts import UserGroupEnum, UserGroup
+from database.models.accounts import UserGroup, UserModel, UserGroupEnum, UserProfileModel
 
 
 def pytest_configure(config):
@@ -127,3 +130,34 @@ async def seed_database(settings, db_session):
 
     await seeder.seed()
     yield db_session
+
+
+async def create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER, email="user@example.com"):
+    group_row = (await db_session.execute(
+        select(UserGroup).where(UserGroup.name == group)
+    )).scalars().first()
+    user = UserModel.create(
+        email=email,
+        raw_password="StrongPassword123!",
+        group_id=group_row.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    access_token = jwt_manager.create_access_token(data={"user_id": user.id})
+    return user, access_token
+
+
+async def make_image_bytes(fmt="JPEG", size=(10, 10)) -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", size=size, color="red").save(buffer, format=fmt)
+    return buffer.getvalue()
+
+
+async def create_profile_for_user(db_session, user, **fields):
+    profile = UserProfileModel(user_id=user.id, **fields)
+    db_session.add(profile)
+    await db_session.commit()
+    await db_session.refresh(profile)
+    return profile

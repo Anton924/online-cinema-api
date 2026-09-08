@@ -3,7 +3,6 @@ from datetime import date, timedelta
 from unittest.mock import patch
 from sqlalchemy import select
 import pytest
-from PIL import Image
 
 from database.models.accounts import UserGroupEnum, UserModel, UserGroup, UserProfileModel
 from sqlalchemy.exc import SQLAlchemyError
@@ -11,35 +10,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from tests.doubles.fakes.storage import FakeS3Storage
 
 from exceptions.storages import S3FileUploadError
-
-
-async def make_image_bytes(fmt="JPEG", size=(10, 10)) -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", size=size, color="red").save(buffer, format=fmt)
-    return buffer.getvalue()
-
-
-async def create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER):
-    group_row = (await db_session.execute(select(UserGroup).where(UserGroup.name == group))).scalars().first()
-    user = UserModel.create(
-        email="user@example.com",
-        raw_password="StrongPassword123!",
-        group_id=group_row.id
-    )
-    user.is_active = True
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    access_token = jwt_manager.create_access_token(data={"user_id": user.id})
-    return user, access_token
-
-
-async def create_profile_for_user(db_session, user, **fields):
-    profile = UserProfileModel(user_id=user.id, **fields)
-    db_session.add(profile)
-    await db_session.commit()
-    await db_session.refresh(profile)
-    return profile
+from tests.conftest import (
+    create_active_user_with_token,
+    make_image_bytes,
+    create_profile_for_user
+)
 
 
 @pytest.mark.asyncio
