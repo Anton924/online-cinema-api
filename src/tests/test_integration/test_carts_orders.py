@@ -285,3 +285,54 @@ async def test_list_orders_empty(client, db_session, jwt_manager, seed_user_grou
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert response.json() == [], "Expected an empty list when the user has no orders."
 
+
+@pytest.mark.asyncio
+async def test_create_order_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    await add_item_to_cart_directly(db_session=db_session, user=user, movie=movie)
+
+    response = await client.post(f"/api/v1/orders", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert float(response.json()["order_sum"]) == float(movie.price), "Order sum does not match the movie price."
+    remaining_cart_items = (await db_session.execute(select(CartItem).join(CartModel).where(CartModel.user_id == user.id))).scalars().all()
+    assert remaining_cart_items == [], "Cart should be emptied after the order is created."
+
+
+@pytest.mark.asyncio
+async def test_create_order_empty_cart(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.post(f"/api/v1/orders", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "Your cart is empty.", "Unexpected error message for an empty cart."
+
+
+@pytest.mark.asyncio
+async def test_create_order_already_purchased(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    await create_order_directly(db_session=db_session, user=user, movie=movie, status=StatusOrderEnum.PAID)
+    await add_item_to_cart_directly(db_session=db_session, user=user, movie=movie)
+
+    response = await client.post(f"/api/v1/orders", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie {movie.name!r} has already been purchased.", "Unexpected conflict error message."
+    orders_count = (await db_session.execute(select(func.count(OrderModel.id)).where(OrderModel.user_id == user.id))).scalar()
+    assert orders_count == 1, "The failed new order should not have been persisted (only the pre-existing paid one)."
+
+
+@pytest.mark.asyncio
+async def test_create_order_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    await add_item_to_cart_directly(db_session=db_session, user=user, movie=movie)
+
+    with patch("routes.orders.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post(f"/api/v1/orders", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while creating the order.", "Unexpected error message for a commit failure."
+
