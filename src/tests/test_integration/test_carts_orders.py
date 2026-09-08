@@ -261,3 +261,27 @@ async def test_view_user_cart_empty(client, db_session, jwt_manager, seed_user_g
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert response.json()["message"] == f"User {target_user.email!r} has no movies in the cart.", "Unexpected message for an empty target cart."
 
+
+@pytest.mark.asyncio
+async def test_list_orders_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie_1 = await create_movie(db_session=db_session)
+    movie_2 = await create_movie(db_session=db_session, name="Dune", certification_name="M")
+
+    await create_order_directly(db_session=db_session, user=user, movie=movie_1)
+    await create_order_directly(db_session=db_session, user=user, movie=movie_2)
+
+    response = await client.get(f"/api/v1/orders", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()) == 2, "Unexpected number of orders returned."
+    assert response.json()[0]["items_count"] == 1, "Unexpected item count for an order."
+
+
+@pytest.mark.asyncio
+async def test_list_orders_empty(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.get(f"/api/v1/orders", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json() == [], "Expected an empty list when the user has no orders."
+
