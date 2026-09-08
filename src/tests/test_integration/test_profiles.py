@@ -198,3 +198,40 @@ async def test_create_profile_commit_error(client, db_session, jwt_manager, s3_s
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while creating the profile.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_read_own_profile_success(client, db_session, jwt_manager, seed_user_groups):
+    profile_data = {
+        "first_name": "John"
+    }
+
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_profile_for_user(db_session=db_session, user=user, **profile_data)
+    response = await client.get("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["first_name"] == profile_data["first_name"], "Returned first name does not match the one sent."
+    assert response.json()["avatar"] is None, "Avatar should be null when none was uploaded."
+
+
+@pytest.mark.asyncio
+async def test_read_own_profile_with_avatar(client, db_session, jwt_manager, seed_user_groups, s3_storage_fake):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    img_bytes = await make_image_bytes(fmt="JPEG")
+    file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
+    response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"}, files=file)
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    avatar_key = f"avatar/{user.id}.jpeg"
+    avatar_url = await s3_storage_fake.get_file_url(file_name=avatar_key)
+    response = await client.get("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["avatar"] == avatar_url, "Returned avatar URL does not match the fake storage key."
+
+
+@pytest.mark.asyncio
+async def test_read_own_profile_not_found(client, db_session, jwt_manager, seed_user_groups, s3_storage_fake):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.get("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "Profile not found.", "Unexpected error message for a missing profile."
+
