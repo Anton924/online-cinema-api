@@ -70,9 +70,11 @@ class UserProfileRequestSchema(BaseModel):
 
     @field_validator("date_of_birth", mode="before")
     @classmethod
-    def validate_date_of_birth(cls, value: date) -> date | None:
+    def validate_date_of_birth(cls, value: date | str | None) -> date | None:
         if not value or value is None:
             return None
+        if isinstance(value, str):
+            value = date.fromisoformat(value)
         return validate_birth_date(value)
 
 
