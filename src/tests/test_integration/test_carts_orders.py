@@ -336,3 +336,40 @@ async def test_create_order_commit_error(client, db_session, jwt_manager, seed_u
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while creating the order.", "Unexpected error message for a commit failure."
 
+
+@pytest.mark.asyncio
+async def test_view_order_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    order = await create_order_directly(db_session=db_session, user=user, movie=movie)
+
+    response = await client.get(f"/api/v1/orders/{order.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["id"] == order.id, "Returned order id does not match."
+    assert len(response.json()["items"]) == 1, "Unexpected number of order items."
+
+
+@pytest.mark.asyncio
+async def test_view_order_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_order_id = 9999
+
+    response = await client.get(f"/api/v1/orders/{fake_order_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Order with id {fake_order_id} not found.", "Unexpected error message for a missing order."
+
+
+@pytest.mark.asyncio
+async def test_view_order_forbidden(client, db_session, jwt_manager, seed_user_groups):
+    user_order_owner, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+
+    order = await create_order_directly(db_session=db_session, user=user_order_owner, movie=movie)
+
+    user_viewer, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER, email="user_viewer@example.com")
+
+    response = await client.get(f"/api/v1/orders/{order.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
+    assert response.json()["detail"] == "You can view only your own orders!", "Unexpected error message for viewing another user's order."
+
