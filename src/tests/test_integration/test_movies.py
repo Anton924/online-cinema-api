@@ -1655,3 +1655,53 @@ async def test_list_comments_empty(client, db_session, jwt_manager, seed_user_gr
     response = await client.get(f"/api/v1/movies/{movie.id}/comments", headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert response.json()["message"] == f"There is no comments for the movie {movie.name!r}", "Unexpected number of comments returned."
+
+
+@pytest.mark.asyncio
+async def test_update_comment_success(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+    comment_upload_payload = {"comment": "Updated text."}
+
+    response = await client.patch(f"/api/v1/movies/comments/{comment.id}", json=comment_upload_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Comment on {movie.name!r} was successfully updated.", "Unexpected success message."
+    await db_session.refresh(comment)
+    assert comment.comment == "Updated text.", "Comment text was not updated in the database."
+
+
+@pytest.mark.asyncio
+async def test_update_comment_not_found(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_comment_id = 9999
+    comment_upload_payload = {"comment": "Updated text."}
+
+    response = await client.patch(f"/api/v1/movies/comments/{fake_comment_id}", json=comment_upload_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 200, got {response.status_code}"
+    assert response.json()["detail"] == f"Comment with id {fake_comment_id} not found.", "Unexpected error message for a missing comment."
+
+
+@pytest.mark.asyncio
+async def test_update_comment_forbidden(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+    comment_upload_payload = {"comment": "Updated text."}
+    editor, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER, email="editor@example.com")
+
+    response = await client.patch(f"/api/v1/movies/comments/{comment.id}", json=comment_upload_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 403, f"Expected 200, got {response.status_code}"
+    assert response.json()["detail"] == f"You can change only your comments!", "Unexpected error message for editing someone else's comment."
+
+
+@pytest.mark.asyncio
+async def test_update_comment_commit_error(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+    comment_upload_payload = {"comment": "Updated text."}
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.patch(f"/api/v1/movies/comments/{comment.id}", json=comment_upload_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while updating comment to the movie.", "Unexpected error message for a commit failure."
