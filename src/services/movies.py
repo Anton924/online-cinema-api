@@ -274,7 +274,7 @@ async def get_genres_with_movie_count(
     if not genres:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No genres found"
+            detail="No genres found."
         )
 
     genre_list = [
