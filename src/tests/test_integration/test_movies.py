@@ -1206,3 +1206,93 @@ async def test_delete_movie_commit_error(client, db_session, jwt_manager, seed_u
         response = await client.delete(f"/api/v1/movies/{movie.id}", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while deleting the movie.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_add_to_favorites_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Movie {movie.name!r} was successfully added to favorites for {user.email}", "Unexpected success message."
+
+    stmt = select(MovieModel).where(MovieModel.id == movie.id).options(joinedload(MovieModel.favorited_by)).execution_options(populate_existing=True)
+    result = await db_session.execute(stmt)
+    movie = result.scalars().first()
+    assert movie.favorited_by is not None, "Movie should be added to user's favourite."
+
+
+@pytest.mark.asyncio
+async def test_add_to_favorites_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_movie_id = 9999
+
+    response = await client.post(f"/api/v1/movies/{fake_movie_id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_add_to_favorites_already_favorited(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Movie {movie.name!r} was successfully added to favorites for {user.email}", "Unexpected success message."
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == "This movie is already in your favorites.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_remove_from_favorites_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session, favorited_by=[user])
+
+    response = await client.delete(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Movie {movie.name!r} was removed from favorites for {user.email}", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_remove_from_favorites_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_movie_id = 9999
+
+    response = await client.delete(f"/api/v1/movies/{fake_movie_id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_remove_from_favorites_not_favorited(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+
+    response = await client.delete(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "This movie is not in your favorites.", "Unexpected error message for removing a non-favorited movie."
+
+
+@pytest.mark.asyncio
+async def test_add_to_favorites_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session, favorited_by=[user])
+
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while deleting the movie from favorites.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_remove_from_favorites_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 200, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while adding the movie to favorites.", "Unexpected error message for a commit failure."
