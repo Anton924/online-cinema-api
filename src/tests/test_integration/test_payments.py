@@ -96,3 +96,118 @@ async def test_create_payment_session_stripe_error(client, db_session, seed_user
         response = await client.post(f"/api/v1/payments/{order.id}", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while creating the payment session.", "Unexpected checkout URL returned."
+
+
+@pytest.mark.asyncio
+async def test_webhook_checkout_completed_success(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PENDING)
+
+    payment_gateway_fake.verify_webhook_event.return_value = build_checkout_completed_event(user_id=user.id, order_id=order.id)
+
+    response = await client.post("/api/v1/payments/webhook")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Payment for order #{order.id} was successfully processed", "Unexpected success message."
+    record_payment = (await db_session.execute(select(PaymentModel).where(PaymentModel.order_id == order.id))).scalars().first()
+    assert record_payment is not None and record_payment.status == PaymentStatus.SUCCESSFUL, "Payment row was not created with the expected status."
+    order = (await db_session.execute(select(OrderModel).where(OrderModel.user_id == user.id).execution_options(populate_existing=True))).scalars().first()
+    assert order.status == StatusOrderEnum.PAID, "Order was not marked as paid."
+
+
+@pytest.mark.asyncio
+async def test_webhook_invalid_signature(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PENDING)
+
+    with patch.object(payment_gateway_fake, "verify_webhook_event", side_effect=SignatureVerificationError(message="Error", sig_header="sig_header")):
+        response = await client.post("/api/v1/payments/webhook")
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+        assert response.json()["detail"] == "Invalid Stripe signature.", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_webhook_event_already_processed(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PENDING)
+
+    payment_gateway_fake.verify_webhook_event.return_value = build_checkout_completed_event(user_id=user.id, order_id=order.id)
+
+    await db_session.execute(
+        insert(PaymentModel).values(
+            order_id=order.id,
+            user_id=user.id,
+            status=PaymentStatus.SUCCESSFUL,
+            external_payment_id="cs_test_123",
+            payment_intent_id="pi_3Oa1b2c3D4e5F6g7H8i9J0k1",
+        )
+    )
+    await db_session.commit()
+
+    response = await client.post("/api/v1/payments/webhook")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "Event already processed.", "Unexpected message for a duplicate webhook delivery."
+
+
+@pytest.mark.asyncio
+async def test_webhook_payment_still_processing(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PENDING)
+
+    payment_gateway_fake.verify_webhook_event.return_value = build_checkout_completed_event(user_id=user.id, order_id=order.id, payment_status="unpaid")
+
+    await db_session.execute(
+        insert(PaymentModel).values(
+            order_id=order.id,
+            user_id=user.id,
+            status=PaymentStatus.SUCCESSFUL,
+            external_payment_id="cs_test_123",
+            payment_intent_id="pi_3Oa1b2c3D4e5F6g7H8i9J0k1",
+        )
+    )
+    await db_session.commit()
+
+    response = await client.post("/api/v1/payments/webhook")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "Payment is still processing.", "Unexpected message."
+
+
+@pytest.mark.asyncio
+async def test_webhook_unrecognized_event_ignored(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PENDING)
+
+    payment_gateway_fake.verify_webhook_event.return_value = {"type": "payment_intent.created", "data": {"object": {}}}
+
+    await db_session.execute(
+        insert(PaymentModel).values(
+            order_id=order.id,
+            user_id=user.id,
+            status=PaymentStatus.SUCCESSFUL,
+            external_payment_id="cs_test_123",
+            payment_intent_id="pi_3Oa1b2c3D4e5F6g7H8i9J0k1",
+        )
+    )
+    await db_session.commit()
+
+    response = await client.post("/api/v1/payments/webhook")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == "Event ignored.", "Unexpected message for an unhandled event type."
+
+
+@pytest.mark.asyncio
+async def test_webhook_commit_error(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PENDING)
+
+    payment_gateway_fake.verify_webhook_event.return_value = build_checkout_completed_event(user_id=user.id, order_id=order.id)
+
+    with patch("routes.payments.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post("/api/v1/payments/webhook")
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while processing the payment", "Unexpected error message for a commit failure."
