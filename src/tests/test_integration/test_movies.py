@@ -1159,3 +1159,50 @@ async def test_update_movie_commit_error(client, db_session, jwt_manager, seed_u
         response = await client.patch(f"/api/v1/movies/{movie.id}", json=movie_update_payload, headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while updating the movie.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    movie = await create_movie_full(db_session=db_session)
+
+    response = await client.delete(f"/api/v1/movies/{movie.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Movie {movie.name!r} was successfully deleted.", "Unexpected success message."
+
+    stmt = select(MovieModel).where(MovieModel.id == movie.id).execution_options(populate_existing=True)
+    result = await db_session.execute(stmt)
+    deleted_movie = result.scalars().first()
+    assert deleted_movie is None, "Movie should be deleted from the database."
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    fake_movie_id = 9999
+
+    response = await client.delete(f"/api/v1/movies/{fake_movie_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_already_purchased(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    movie = await create_movie_full(db_session=db_session)
+    await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PAID)
+
+    response = await client.delete(f"/api/v1/movies/{movie.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"Cannot delete movie {movie.name!r} - it has already been purchased by one or more users.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    movie = await create_movie_full(db_session=db_session)
+
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete(f"/api/v1/movies/{movie.id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while deleting the movie.", "Unexpected error message for a commit failure."
