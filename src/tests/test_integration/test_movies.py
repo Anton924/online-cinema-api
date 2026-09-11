@@ -1705,3 +1705,66 @@ async def test_update_comment_commit_error(client, db_session, jwt_manager, seed
         response = await client.patch(f"/api/v1/movies/comments/{comment.id}", json=comment_upload_payload, headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while updating comment to the movie.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_success(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+
+    response = await client.delete(f"/api/v1/movies/comments/{comment.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Your comment on {movie.name!r} was successfully deleted.", "Unexpected success message."
+    stmt = select(MovieCommentModel).where(MovieCommentModel.movie_id == movie.id)
+    result = await db_session.execute(stmt)
+    deleted_comment = result.scalars().first()
+    assert deleted_comment is None, "Comment should be deleted from the database."
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_not_found(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_comment_id = 9999
+
+    response = await client.delete(f"/api/v1/movies/comments/{fake_comment_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Comment with id {fake_comment_id} not found.", "Unexpected error message for a missing comment."
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_forbidden_regular_user(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+
+    second_user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER, email="second_user@example.com")
+
+    response = await client.delete(f"/api/v1/movies/comments/{comment.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
+    assert response.json()["detail"] == "You can delete only your comments!", "Unexpected error message for deleting someone else's comment."
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_not_forbidden_for_admin(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN, email="admin@example.com")
+
+    response = await client.delete(f"/api/v1/movies/comments/{comment.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Comment on {comment.movie.name!r} was successfully deleted.", "Unexpected success message for admin deleting comment."
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_commit_error(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete(f"/api/v1/movies/comments/{comment.id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 200, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while deleting comment to the movie.", "Unexpected error message for a commit failure."
