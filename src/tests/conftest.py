@@ -1,4 +1,6 @@
 import io
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest_asyncio
 from PIL import Image
@@ -15,7 +17,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from tests.doubles.stubs.emails import StubEmailSender
 from tests.doubles.fakes.storage import FakeS3Storage
-from config.dependencies import get_email_sender, get_s3_client
+from config.dependencies import get_email_sender, get_s3_client, get_payment_gateway
 from storages.s3 import S3StorageClient
 from database import get_db_contextmanager
 from security.interfaces import JWTAuthManagerInterface
@@ -24,6 +26,9 @@ from database.models.accounts import UserGroup, UserModel, UserGroupEnum, UserPr
 from database.models.movies import CertificationModel, MovieModel, GenreModel, StarModel, DirectorModel, MovieCommentModel
 from database.models.carts import CartModel, CartItem
 from database.models.orders import StatusOrderEnum, OrderModel, OrderItemModel
+from payments.interfaces import PaymentGatewayInterface
+from tests.doubles.fakes.stripe import FakeStripeMetadata
+from database.models.payments import PaymentModel, PaymentStatus
 
 
 def pytest_configure(config):
@@ -78,9 +83,20 @@ async def s3_client(settings):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(email_sender_stub, s3_storage_fake):
+async def payment_gateway_fake():
+    gateway = AsyncMock(spec=PaymentGatewayInterface)
+    gateway.create_checkout_session.return_value = SimpleNamespace(
+        id="cs_test_a1b2c3d4e5f6g7h8i9j0",
+        url="https://checkout.stripe.com/c/pay/cs_test_a1b2c3d4e5f6g7h8i9j0"
+    )
+    return gateway
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client(email_sender_stub, s3_storage_fake, payment_gateway_fake):
     app.dependency_overrides[get_email_sender] = lambda: email_sender_stub
     app.dependency_overrides[get_s3_client] = lambda: s3_storage_fake
+    app.dependency_overrides[get_payment_gateway] = lambda: payment_gateway_fake
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as async_client:
         yield async_client
@@ -260,3 +276,47 @@ async def create_movie_full(db_session, **overrides) -> MovieModel:
     await db_session.commit()
     await db_session.refresh(movie)
     return movie
+
+
+def build_checkout_completed_event(
+        order_id,
+        user_id,
+        session_id="cs_test_123",
+        payment_intent_id="pi_test_123",
+        payment_status="paid"
+):
+    return {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": session_id,
+                "payment_intent": payment_intent_id,
+                "payment_status": payment_status,
+                "metadata": FakeStripeMetadata({
+                    "order_id": str(order_id),
+                    "user_id": str(user_id)
+                })
+            }
+        }
+    }
+
+
+async def create_payment_directly(
+        db_session,
+        order,
+        user,
+        status: PaymentStatus = PaymentStatus.SUCCESSFUL,
+        external_payment_id="cs_test_123",
+        payment_intent_id="pi_3Oa1b2c3D4e5F6g7H8i9J0k1"
+) -> PaymentModel:
+    payment = PaymentModel(
+        order_id=order.id,
+        user_id=user.id,
+        status=status,
+        external_payment_id=external_payment_id,
+        payment_intent_id=payment_intent_id,
+    )
+    db_session.add(payment)
+    await db_session.commit()
+    await db_session.refresh(payment)
+    return payment
