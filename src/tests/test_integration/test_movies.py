@@ -865,3 +865,180 @@ async def test_create_movie_commit_error(client, db_session, jwt_manager, seed_u
         response = await client.post(f"/api/v1/movies", json=movie_payload, headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while creating the movie.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_list_movies_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 9.99, "certification": certification},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 12.99, "certification": certification},
+        {"name": "Interstellar", "year": 2014, "time": 169, "imdb": 8.6, "votes": 2000000,
+         "description": "A team of explorers travel through a wormhole in space in an attempt to save humanity.",
+         "price": 11.49, "certification": certification},
+    ]
+    for movie_data in movies_data:
+        await create_movie_full(db_session=db_session, **movie_data)
+
+    response = await client.get(f"/api/v1/movies", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["total"] == 3, "Unexpected total count."
+    assert len(response.json()["items"]) == 3, "Unexpected number of items on the page."
+
+
+@pytest.mark.asyncio
+async def test_list_movies_empty(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+
+    response = await client.get(f"/api/v1/movies", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["total"] == 0 and response.json()["items"] == [], "Expected an empty paginated envelope, not a 404."
+
+
+@pytest.mark.asyncio
+async def test_list_movies_pagination(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 9.99, "certification": certification},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 12.99, "certification": certification},
+        {"name": "Interstellar", "year": 2014, "time": 169, "imdb": 8.6, "votes": 2000000,
+         "description": "A team of explorers travel through a wormhole in space in an attempt to save humanity.",
+         "price": 11.49, "certification": certification},
+    ]
+    for movie_data in movies_data:
+        await create_movie_full(db_session=db_session, **movie_data)
+
+    response = await client.get(f"/api/v1/movies?page=2&per_page=2", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()["items"]) == 1, "Unexpected number of items on the second page."
+    assert response.json()["total_pages"] == 2, "Unexpected total page count."
+
+
+@pytest.mark.asyncio
+async def test_list_movies_search(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 9.99, "certification": certification},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 12.99, "certification": certification},
+        {"name": "Interstellar", "year": 2014, "time": 169, "imdb": 8.6, "votes": 2000000,
+         "description": "A team of explorers travel through a wormhole in space in an attempt to save humanity.",
+         "price": 11.49, "certification": certification},
+    ]
+    for movie_data in movies_data:
+        await create_movie_full(db_session=db_session, **movie_data)
+
+    response = await client.get(f"/api/v1/movies?search=incep", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()["items"]) == 1, "Search should match only the Inception movie."
+    assert response.json()["total"] == 3, "Unexpected total movie count."
+
+
+@pytest.mark.asyncio
+async def test_list_movies_genre_filter(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    genre_1 = await create_genre_directly(db_session=db_session, name="Sci-Fi")
+    genre_2 = await create_genre_directly(db_session=db_session, name="Action")
+    movies = []
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 9.99, "certification": certification, "genres": [genre_1]},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 12.99, "certification": certification, "genres": [genre_2]},
+    ]
+    for movie_data in movies_data:
+        movies.append(await create_movie_full(db_session=db_session, **movie_data))
+
+    response = await client.get(f"/api/v1/movies?genre_id={genre_1.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()["items"]) == 1, "genre_id filter should return only Inception movie."
+    assert response.json()["items"][0]["name"] == movies[0].name, "genre_id filter returned the wrong movie."
+
+
+@pytest.mark.asyncio
+async def test_list_movies_year_filter(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movies = []
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 9.99, "certification": certification},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 12.99, "certification": certification},
+        {"name": "Interstellar", "year": 2014, "time": 169, "imdb": 8.6, "votes": 2000000,
+         "description": "A team of explorers travel through a wormhole in space in an attempt to save humanity.",
+         "price": 11.49, "certification": certification},
+    ]
+    for movie_data in movies_data:
+        movies.append(await create_movie_full(db_session=db_session, **movie_data))
+
+    response = await client.get("/api/v1/movies?year=2010", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()["items"]) == 1 and response.json()["items"][0]["name"] == movies[0].name, "year filter should return only the 2010 movie."
+
+
+@pytest.mark.asyncio
+async def test_list_movies_price_range(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movies = []
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 5.99, "certification": certification},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 9.99, "certification": certification},
+        {"name": "Interstellar", "year": 2014, "time": 169, "imdb": 8.6, "votes": 2000000,
+         "description": "A team of explorers travel through a wormhole in space in an attempt to save humanity.",
+         "price": 19.99, "certification": certification},
+    ]
+    for movie_data in movies_data:
+        movies.append(await create_movie_full(db_session=db_session, **movie_data))
+
+    response = await client.get("/api/v1/movies?price_min=8&price_max=15", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()["items"]) == 1 and response.json()["items"][0]["price"] == str(movies[1].price), "price_min/price_max range returned the wrong movies."
+
+
+@pytest.mark.asyncio
+async def test_list_movies_sort_by_price_desc(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 5.99, "certification": certification},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 9.99, "certification": certification},
+        {"name": "Interstellar", "year": 2014, "time": 169, "imdb": 8.6, "votes": 2000000,
+         "description": "A team of explorers travel through a wormhole in space in an attempt to save humanity.",
+         "price": 19.99, "certification": certification},
+    ]
+    for movie_data in movies_data:
+        await create_movie_full(db_session=db_session, **movie_data)
+
+    response = await client.get("/api/v1/movies?sort_by=price&order=desc", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert [item["price"] for item in response.json()["items"]] == ["19.99", "9.99", "5.99"], "price_min/price_max range returned the wrong movies."
+
