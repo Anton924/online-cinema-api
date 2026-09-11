@@ -1257,7 +1257,7 @@ async def remove_movie_from_favorites(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while deleting the movie to favorites."
+            detail="An error occurred while deleting the movie from favorites."
         ) from e
 
 
