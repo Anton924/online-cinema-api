@@ -1082,14 +1082,14 @@ async def update_movie_service(
     star_ids_or_names = movie_update_data.pop("star_ids_or_names", None)
 
     try:
-        for key, value in movie_update_data.items():
-            setattr(movie, key, value)
-
         if any(key in movie_update_data for key in ("name", "year", "time")):
+            new_name = movie_update_data.pop("name", movie.name)
+            new_year = movie_update_data.pop("year", movie.year)
+            new_time = movie_update_data.pop("time", movie.time)
             stmt = select(MovieModel).where(
-                MovieModel.name == movie.name,
-                MovieModel.year == movie.year,
-                MovieModel.time == movie.time,
+                MovieModel.name == new_name,
+                MovieModel.year == new_year,
+                MovieModel.time == new_time,
                 MovieModel.id != movie_id
             )
             result = await db.execute(stmt)
@@ -1100,6 +1100,9 @@ async def update_movie_service(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="A movie with this name, year, and duration already exists."
                 )
+
+        for key, value in movie_update_data.items():
+            setattr(movie, key, value)
 
         if certification_id:
             certification = await db.get(CertificationModel, certification_id)
