@@ -211,3 +211,19 @@ async def test_webhook_commit_error(settings, client, db_session, seed_user_grou
         response = await client.post("/api/v1/payments/webhook")
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == f"An error occurred while processing the payment", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_payment_success_page(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    response = await client.get("/api/v1/payments/success?session_id=cs_test_123")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json() == {"status": "success", "session_id": "cs_test_123"}, "Unexpected response body."
+
+
+@pytest.mark.asyncio
+async def test_payment_cancel_page(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    response = await client.get("/api/v1/payments/cancel")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json() == {"status": "cancelled"}, "Unexpected response body."
