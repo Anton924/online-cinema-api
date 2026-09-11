@@ -21,7 +21,7 @@ from database import get_db_contextmanager
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from database.models.accounts import UserGroup, UserModel, UserGroupEnum, UserProfileModel
-from database.models.movies import CertificationModel, MovieModel
+from database.models.movies import CertificationModel, MovieModel, GenreModel, StarModel, DirectorModel, MovieCommentModel
 from database.models.carts import CartModel, CartItem
 from database.models.orders import StatusOrderEnum, OrderModel, OrderItemModel
 
@@ -206,3 +206,57 @@ async def create_profile_for_user(db_session, user, **fields):
     await db_session.commit()
     await db_session.refresh(profile)
     return profile
+
+
+async def create_certification_directly(db_session, name="PG-13") -> CertificationModel:
+    certification = CertificationModel(name=name)
+    db_session.add(certification)
+    await db_session.commit()
+    await db_session.refresh(certification)
+    return certification
+
+
+async def create_genre_directly(db_session, name="Action") -> GenreModel:
+    genre = GenreModel(name=name)
+    db_session.add(genre)
+    await db_session.commit()
+    await db_session.refresh(genre)
+    return genre
+
+
+async def create_star_directly(db_session, name="Tom Hardy") -> StarModel:
+    star = StarModel(name=name)
+    db_session.add(star)
+    await db_session.commit()
+    await db_session.refresh(star)
+    return star
+
+
+async def create_director_directly(db_session, name="Christopher Nolan") -> DirectorModel:
+    director = DirectorModel(name=name)
+    db_session.add(director)
+    await db_session.commit()
+    await db_session.refresh(director)
+    return director
+
+
+async def create_comment_directly(db_session, user_id: int, movie_id: int, parent_id: int = None, comment="Great movie!") -> DirectorModel:
+    comment = MovieCommentModel(comment=comment, user_id=user_id, movie_id=movie_id, parent_id=parent_id)
+    db_session.add(comment)
+    await db_session.commit()
+    await db_session.refresh(comment)
+    return comment
+
+
+async def create_movie_full(db_session, **overrides) -> MovieModel:
+    certification = overrides.pop("certification", None) or await create_certification_directly(db_session)
+    defaults = dict(
+        name="Inception", year=2010, time=148, imdb=8.8, votes=100,
+        description="A mind-bending thriller.", price=9.99, certification_id=certification.id
+    )
+    defaults.update(overrides)
+    movie = MovieModel(**defaults)
+    db_session.add(movie)
+    await db_session.commit()
+    await db_session.refresh(movie)
+    return movie
