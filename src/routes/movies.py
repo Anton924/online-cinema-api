@@ -1579,7 +1579,7 @@ async def create_comment(
 @router.get(
     "/{movie_id}/comments",
     status_code=status.HTTP_200_OK,
-    response_model=MovieCommentResponseSchema,
+    response_model=MovieCommentResponseSchema | MessageResponseSchema,
     tags=["Comments"],
     responses={
         404: {
