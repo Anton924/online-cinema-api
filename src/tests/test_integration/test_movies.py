@@ -1294,7 +1294,7 @@ async def test_remove_from_favorites_commit_error(client, db_session, jwt_manage
     movie = await create_movie_full(db_session=db_session)
     with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
         response = await client.post(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
-        assert response.status_code == 500, f"Expected 200, got {response.status_code}"
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while adding the movie to favorites.", "Unexpected error message for a commit failure."
 
 
@@ -1766,5 +1766,5 @@ async def test_delete_comment_commit_error(client, db_session, jwt_manager, seed
 
     with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
         response = await client.delete(f"/api/v1/movies/comments/{comment.id}", headers={"Authorization": f"Bearer {access_token}"})
-        assert response.status_code == 500, f"Expected 200, got {response.status_code}"
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while deleting comment to the movie.", "Unexpected error message for a commit failure."
