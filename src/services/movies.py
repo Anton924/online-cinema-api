@@ -207,17 +207,20 @@ async def delete_certification_service(
         )
 
     try:
+        certification_name = certification.name
         await db.delete(certification)
         await db.commit()
         return MessageResponseSchema(
             message=f"Certification {certification.name!r} was successfully deleted."
         )
     except IntegrityError as e:
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete certification {certification.name!r} - it is still assigned to one or more movies."
+            detail=f"Cannot delete certification {certification_name!r} - it is still assigned to one or more movies."
         ) from e
     except SQLAlchemyError as e:
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while deleting the certification."
