@@ -1623,3 +1623,35 @@ async def test_create_comment_commit_error(client, db_session, jwt_manager, seed
         response = await client.post(f"/api/v1/movies/{movie.id}/comments", json=comment_payload, headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while adding comment to the movie.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_list_comments_success(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+
+    response = await client.get(f"/api/v1/movies/{movie.id}/comments", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["movie_name"] == movie.name, f"Returned comments are not for the requested movie."
+    assert len(response.json()["comments"]) == 1, "Unexpected number of comments returned."
+
+
+@pytest.mark.asyncio
+async def test_list_comments_movie_not_found(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_movie_id = 9999
+
+    response = await client.get(f"/api/v1/movies/{fake_movie_id}/comments", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id} not found.", "Unexpected number of comments returned."
+
+
+@pytest.mark.asyncio
+async def test_list_comments_empty(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+
+    response = await client.get(f"/api/v1/movies/{movie.id}/comments", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"There is no comments for the movie {movie.name!r}", "Unexpected number of comments returned."
