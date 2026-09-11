@@ -1620,6 +1620,10 @@ async def delete_comment_service(
     try:
         await db.delete(comment)
         await db.commit()
+        if comment.user_id != current_user.id:
+            return MessageResponseSchema(
+                message=f"Comment on {comment.movie.name!r} was successfully deleted."
+            )
         return MessageResponseSchema(
             message=f"Your comment on {comment.movie.name!r} was successfully deleted."
         )
