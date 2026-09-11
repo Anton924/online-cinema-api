@@ -1422,3 +1422,100 @@ async def test_remove_movie_reaction_commit_error(client, db_session, jwt_manage
         response = await client.delete(f"/api/v1/movies/{movie.id}/like", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while deleting like to the movie.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_rating_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    rating_payload = {"score": 8}
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/rating", json=rating_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Movie {movie.name!r} was successfully rated {rating_payload["score"]}/10 by {user.email}.", "Unexpected success message."
+
+    stmt = select(MovieModel).where(MovieModel.id == movie.id).options(joinedload(MovieModel.scores)).execution_options(populate_existing=True)
+    result = await db_session.execute(stmt)
+    movie = result.scalars().first()
+    assert movie.scores is not None, "Movie should have it score."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_rating_update_existing(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await db_session.execute(insert(MovieRateModel).values(user_id=user.id, movie_id=movie.id, score=8))
+    rating_update_payload = {"score": 6}
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/rating", json=rating_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, "Re-rating should succeed, not conflict."
+    assert response.json()["message"] == f"Movie {movie.name!r} was successfully rated {rating_update_payload["score"]}/10 by {user.email}.", "Unexpected success message."
+
+    stmt = select(MovieRateModel).where(MovieRateModel.user_id == user.id, MovieRateModel.movie_id == movie.id)
+    result = await db_session.execute(stmt)
+    rating_rows = result.scalars().all()
+    assert len(rating_rows) == 1 and rating_rows[0].score == rating_update_payload["score"], "The row should be updated in place, not duplicated."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_rating_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_movie_id = 9999
+    rating_payload = {"score": 8}
+
+    response = await client.post(f"/api/v1/movies/{fake_movie_id}/rating", json=rating_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id!r} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_remove_movie_rating_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await db_session.execute(insert(MovieRateModel).values(user_id=user.id, movie_id=movie.id, score=8))
+
+    response = await client.delete(f"/api/v1/movies/{movie.id}/rating", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Your rating for {movie.name!r} was successfully removed.", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_remove_movie_rating_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_movie_id = 9999
+
+    response = await client.delete(f"/api/v1/movies/{fake_movie_id}/rating", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id!r} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_remove_movie_rating_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+
+    response = await client.delete(f"/api/v1/movies/{movie.id}/rating", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"You have not rated the movie {movie.name!r}", "Unexpected error message for removing a non-existent rating."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_rating_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    rating_payload = {"score": 8}
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post(f"/api/v1/movies/{movie.id}/rating", json=rating_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while adding score to the movie.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_remove_movie_rating_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await db_session.execute(insert(MovieRateModel).values(user_id=user.id, movie_id=movie.id, score=8))
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete(f"/api/v1/movies/{movie.id}/rating", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while deleting score to the movie." , "Unexpected error message for a commit failure."
