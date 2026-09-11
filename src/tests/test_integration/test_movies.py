@@ -1083,3 +1083,79 @@ async def test_list_favorite_movies_empty(client, db_session, jwt_manager, seed_
     response = await client.get("/api/v1/movies/favorites", headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert response.json()["items"] == [] and response.json()["total"] == 0, "Expected an empty paginated envelope for a user with no favorites."
+
+
+@pytest.mark.asyncio
+async def test_update_movie_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    movie = await create_movie_full(db_session=db_session)
+    movie_update_payload = {"price": "14.99"}
+
+    response = await client.patch(f"/api/v1/movies/{movie.id}", json=movie_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["price"] == "14.99", "Price was not updated."
+
+
+@pytest.mark.asyncio
+async def test_update_movie_conflict(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movies = []
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 5.99, "certification": certification},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 9.99, "certification": certification},
+        {"name": "Interstellar", "year": 2014, "time": 169, "imdb": 8.6, "votes": 2000000,
+         "description": "A team of explorers travel through a wormhole in space in an attempt to save humanity.",
+         "price": 19.99, "certification": certification},
+    ]
+    for movie_data in movies_data:
+        movies.append(await create_movie_full(db_session=db_session, **movie_data))
+    movie_update_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148
+    }
+
+    response = await client.patch(f"/api/v1/movies/{movies[1].id}", json=movie_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == "A movie with this name, year, and duration already exists.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_update_movie_certification_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    movie = await create_movie_full(db_session=db_session)
+    movie_update_payload = {
+        "certification_id": 9999
+    }
+
+    response = await client.patch(f"/api/v1/movies/{movie.id}", json=movie_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Certification with id {movie_update_payload["certification_id"]} not found.", "Unexpected error message for a missing certification."
+
+
+@pytest.mark.asyncio
+async def test_update_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    movie_update_payload = {"price": "14.99"}
+    fake_movie_id = 9999
+
+    response = await client.patch(f"/api/v1/movies/{fake_movie_id}", json=movie_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_update_movie_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    movie = await create_movie_full(db_session=db_session)
+    movie_update_payload = {"price": "14.99"}
+
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.patch(f"/api/v1/movies/{movie.id}", json=movie_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while updating the movie.", "Unexpected error message for a commit failure."
