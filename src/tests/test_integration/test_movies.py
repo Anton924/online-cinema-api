@@ -665,3 +665,203 @@ async def test_delete_director_commit_error(client, db_session, jwt_manager, see
         assert response.json()["detail"] == f"An error occurred while deleting the director.", "Unexpected error message for a commit failure."
 
 
+
+
+@pytest.mark.asyncio
+async def test_create_movie_success_with_names(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movie_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "votes": 100,
+        "description": "...",
+        "price": "9.99",
+        "certification_id": certification.id,
+        "genre_ids_or_names": ["Sci-Fi"],
+        "star_ids_or_names": ["Tom Hardy"],
+        "director_ids_or_names": ["Christopher Nolan"]
+    }
+    response = await client.post(f"/api/v1/movies", json=movie_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.json()["genres"][0]["name"] == "Sci-Fi", "Genre was not attached to the movie."
+    genre_row = (await db_session.execute(select(GenreModel).where(GenreModel.name == "Sci-Fi"))).scalars().first()
+    assert genre_row is not None, "A new Genre row should have been created for the unrecognized name."
+    star_row = (await db_session.execute(select(StarModel).where(StarModel.name == "Tom Hardy"))).scalars().first()
+    assert star_row is not None, "A new Star row should have been created for the unrecognized name."
+    director_row = (await db_session.execute(select(DirectorModel).where(DirectorModel.name == "Christopher Nolan"))).scalars().first()
+    assert director_row is not None, "A new Star row should have been created for the unrecognized name."
+
+
+@pytest.mark.asyncio
+async def test_create_movie_success_with_ids(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    genre = await create_genre_directly(db_session=db_session, name="Sci-Fi")
+    star = await create_star_directly(db_session=db_session, name="Tom Hardy")
+    director = await create_director_directly(db_session=db_session, name="Christopher Nolan")
+    movie_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "votes": 100,
+        "description": "...",
+        "price": "9.99",
+        "certification_id": certification.id,
+        "genre_ids_or_names": [genre.id],
+        "star_ids_or_names": [star.id],
+        "director_ids_or_names": [director.id]
+    }
+    response = await client.post(f"/api/v1/movies", json=movie_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.json()["genres"][0]["name"] == "Sci-Fi", "Genre was not attached to the movie."
+    genre_row = (await db_session.execute(select(GenreModel).where(GenreModel.name == "Sci-Fi"))).scalars().first()
+    assert genre_row is not None, "A new Genre row should have been created for the unrecognized name."
+    star_row = (await db_session.execute(select(StarModel).where(StarModel.name == "Tom Hardy"))).scalars().first()
+    assert star_row is not None, "A new Star row should have been created for the unrecognized name."
+    director_row = (await db_session.execute(select(DirectorModel).where(DirectorModel.name == "Christopher Nolan"))).scalars().first()
+    assert director_row is not None, "A new Star row should have been created for the unrecognized name."
+
+
+@pytest.mark.asyncio
+async def test_create_movie_certification_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    fake_certification_id = 9999
+    movie_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "votes": 100,
+        "description": "...",
+        "price": "9.99",
+        "certification_id": fake_certification_id,
+        "genre_ids_or_names": ["Sci-Fi"],
+        "star_ids_or_names": ["Tom Hardy"],
+        "director_ids_or_names": ["Christopher Nolan"]
+    }
+    response = await client.post(f"/api/v1/movies", json=movie_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Certification with id {fake_certification_id} not found.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_create_movie_genre_id_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    fake_genre_id = 9999
+    movie_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "votes": 100,
+        "description": "...",
+        "price": "9.99",
+        "certification_id": certification.id,
+        "genre_ids_or_names": [fake_genre_id],
+        "star_ids_or_names": ["Tom Hardy"],
+        "director_ids_or_names": ["Christopher Nolan"]
+    }
+    response = await client.post(f"/api/v1/movies", json=movie_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Genre with id {fake_genre_id} not found.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_create_movie_star_id_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    fake_star_id = 9999
+    movie_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "votes": 100,
+        "description": "...",
+        "price": "9.99",
+        "certification_id": certification.id,
+        "genre_ids_or_names": ["Sci-Fi"],
+        "star_ids_or_names": [fake_star_id],
+        "director_ids_or_names": ["Christopher Nolan"]
+    }
+    response = await client.post(f"/api/v1/movies", json=movie_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Star with id {fake_star_id} not found.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_create_movie_director_id_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    fake_director_id = 9999
+    movie_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "votes": 100,
+        "description": "...",
+        "price": "9.99",
+        "certification_id": certification.id,
+        "genre_ids_or_names": ["Sci-Fi"],
+        "star_ids_or_names": ["Tom Hardy"],
+        "director_ids_or_names": [fake_director_id]
+    }
+    response = await client.post(f"/api/v1/movies", json=movie_payload,
+                                 headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Director with id {fake_director_id} not found.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_create_movie_conflict(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    await create_movie_full(db_session, certification=certification)
+    movie_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "votes": 100,
+        "description": "...",
+        "price": "9.99",
+        "certification_id": certification.id,
+        "genre_ids_or_names": ["Sci-Fi"],
+        "star_ids_or_names": ["Tom Hardy"],
+        "director_ids_or_names": ["Christopher Nolan"]
+    }
+    response = await client.post(f"/api/v1/movies", json=movie_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == "A movie with this name, year, and duration already exists.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_create_movie_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    genre = await create_genre_directly(db_session=db_session, name="Sci-Fi")
+    star = await create_star_directly(db_session=db_session, name="Tom Hardy")
+    director = await create_director_directly(db_session=db_session, name="Christopher Nolan")
+    movie_payload = {
+        "name": "Inception",
+        "year": 2010,
+        "time": 148,
+        "imdb": 8.8,
+        "votes": 100,
+        "description": "...",
+        "price": "9.99",
+        "certification_id": certification.id,
+        "genre_ids_or_names": [genre.id],
+        "star_ids_or_names": [star.id],
+        "director_ids_or_names": [director.id]
+    }
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post(f"/api/v1/movies", json=movie_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while creating the movie.", "Unexpected error message for a commit failure."
