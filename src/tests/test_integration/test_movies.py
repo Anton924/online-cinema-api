@@ -188,3 +188,185 @@ async def test_delete_certification_commit_error(client, db_session, jwt_manager
         response = await client.delete(f"/api/v1/movies/certifications/{certification.id}", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == f"An error occurred while deleting the certification.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_create_genre_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    genre_payload = {
+        "name": "Action"
+    }
+
+    response = await client.post("/api/v1/movies/genres", json=genre_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.json()["name"] == genre_payload["name"], "Returned name does not match the one sent."
+
+
+@pytest.mark.asyncio
+async def test_create_genre_conflict(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    genre_payload = {
+        "name": "Action"
+    }
+    genre = await create_genre_directly(db_session, **genre_payload)
+
+    response = await client.post("/api/v1/movies/genres", json=genre_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"A genre with this name {genre.name!r} already exists.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_list_genre_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_genre_directly(db_session, name="Action")
+    await create_genre_directly(db_session, name="Adventure")
+
+    response = await client.get("/api/v1/movies/genres", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()) == 2, "Unexpected number of genres returned."
+
+
+@pytest.mark.asyncio
+async def test_list_genres_empty(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.get("/api/v1/movies/genres", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "No genres found.", "Unexpected error message for an empty table."
+
+
+@pytest.mark.asyncio
+async def test_get_genre_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    genre = await create_genre_directly(db_session, name="Action")
+    await create_movie_full(db_session, certification=certification, genres=[genre], name="Inception", year=2010, time=148)
+    await create_movie_full(db_session, certification=certification, genres=[genre], name="Interstellar", year=2014, time=169)
+
+
+    response = await client.get(f"/api/v1/movies/genres/{genre.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["movie_count"] == 2, "Unexpected movie count for the genre."
+
+
+@pytest.mark.asyncio
+async def test_get_genre_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_genre_id = 9999
+
+    response = await client.get(f"/api/v1/movies/genres/{fake_genre_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Genre with id {fake_genre_id} not found.", "Unexpected error message for a missing genre."
+
+
+@pytest.mark.asyncio
+async def test_update_genre_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    genre = await create_genre_directly(db_session, name="Action")
+    genre_update_payload = {
+        "name": "New Name"
+    }
+    response = await client.patch(f"/api/v1/movies/genres/{genre.id}", json=genre_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["name"] == "New Name", "Name was not updated."
+
+
+@pytest.mark.asyncio
+async def test_get_genre_movies_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    genre = await create_genre_directly(db_session, name="Action")
+
+    movie = await create_movie_full(db_session, certification=certification, genres=[genre])
+    response = await client.get(f"/api/v1/movies/genres/{genre.id}/movies", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()) == 1, "Unexpected number of movies returned for the genre."
+    assert response.json()[0]["name"] == movie.name, "Returned movie does not match the one attached to the genre."
+
+
+@pytest.mark.asyncio
+async def test_get_genre_movies_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    fake_genre_id = 9999
+
+    response = await client.get(f"/api/v1/movies/genres/{fake_genre_id}/movies", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Genre with id {fake_genre_id} not found.", "Unexpected error message for a missing genre."
+
+
+@pytest.mark.asyncio
+async def test_get_genre_movies_empty(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    genre = await create_genre_directly(db_session, name="Action")
+    response = await client.get(f"/api/v1/movies/genres/{genre.id}/movies", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"No movies for {genre.name} genre.", "Unexpected message for a genre with no movies."
+
+@pytest.mark.asyncio
+async def test_update_genre_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    fake_genre_id = 9999
+    genre_update_payload = {
+        "name": "New Name"
+    }
+    response = await client.patch(f"/api/v1/movies/genres/{fake_genre_id}", json=genre_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Genre with id {fake_genre_id} not found.", "Unexpected error message for a missing genre."
+
+
+@pytest.mark.asyncio
+async def test_update_genre_conflict(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    await create_genre_directly(db_session, name="Action")
+    genre_2 = await create_genre_directly(db_session, name="Adventure")
+    genre_update_payload = {
+        "name": "Action"
+    }
+    response = await client.patch(f"/api/v1/movies/genres/{genre_2.id}", json=genre_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"A genre with this name {genre_update_payload["name"]!r} already exists.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_delete_genre_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    genre = await create_genre_directly(db_session, name="Action")
+
+    response = await client.delete(f"/api/v1/movies/genres/{genre.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Genre {genre.name!r} was successfully deleted.", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_create_genre_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    genre_payload = {
+        "name": "Action"
+    }
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post("/api/v1/movies/genres", json=genre_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while creating the genre.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_update_genre_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    genre = await create_genre_directly(db_session, name="Action")
+    genre_update_payload = {
+        "name": "New Name"
+    }
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.patch(f"/api/v1/movies/genres/{genre.id}", json=genre_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while updating the genre.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_delete_genre_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    genre = await create_genre_directly(db_session, name="Action")
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete(f"/api/v1/movies/genres/{genre.id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while deleting the genre.", "Unexpected error message for a commit failure."
