@@ -1296,3 +1296,129 @@ async def test_remove_from_favorites_commit_error(client, db_session, jwt_manage
         response = await client.post(f"/api/v1/movies/{movie.id}/favorites", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 200, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while adding the movie to favorites.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_reaction_like(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    reaction_payload = {"like_dislike": "like"}
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/like", json=reaction_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Movie {movie.name!r} was liked by you.", "Unexpected success message for a like."
+
+    stmt = select(MovieModel).where(MovieModel.id == movie.id).options(joinedload(MovieModel.likes_dislikes)).execution_options(populate_existing=True)
+    result = await db_session.execute(stmt)
+    movie = result.scalars().first()
+    assert movie.likes_dislikes is not None, "Movie should be liked by user."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_reaction_dislike(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    reaction_payload = {"like_dislike": "dislike"}
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/like", json=reaction_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Movie {movie.name!r} was disliked by you.", "Unexpected success message for a dislike."
+
+    stmt = select(MovieModel).where(MovieModel.id == movie.id).options(joinedload(MovieModel.likes_dislikes)).execution_options(populate_existing=True)
+    result = await db_session.execute(stmt)
+    movie = result.scalars().first()
+    assert movie.likes_dislikes is not None, "Movie should be disliked by user."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_reaction_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_movie_id = 9999
+    reaction_payload = {"like_dislike": "like"}
+
+    response = await client.post(f"/api/v1/movies/{fake_movie_id}/like", json=reaction_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_reaction_already_liked(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await db_session.execute(insert(MovieLikeDislikeModel).values(user_id=user.id, movie_id=movie.id, like_dislike=LikeDislikeEnum.LIKE))
+    reaction_payload = {"like_dislike": "like"}
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/like", json=reaction_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"The movie {movie.name!r} is already liked by you", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_reaction_switch(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await db_session.execute(insert(MovieLikeDislikeModel).values(user_id=user.id, movie_id=movie.id, like_dislike=LikeDislikeEnum.LIKE))
+    reaction_payload = {"like_dislike": "dislike"}
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/like", json=reaction_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Switching an existing reaction should succeed, not conflict."
+    stmt = select(func.count(MovieLikeDislikeModel.id)).where(MovieLikeDislikeModel.user_id == user.id, MovieLikeDislikeModel.movie_id == movie.id)
+    result = await db_session.execute(stmt)
+    reaction_count = result.scalar()
+    assert reaction_count == 1, "The row should be updated in place, not duplicated."
+
+
+
+@pytest.mark.asyncio
+async def test_remove_movie_reaction_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await db_session.execute(insert(MovieLikeDislikeModel).values(user_id=user.id, movie_id=movie.id, like_dislike=LikeDislikeEnum.LIKE))
+
+    response = await client.delete(f"/api/v1/movies/{movie.id}/like", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"You have deleted your reaction for the movie {movie.name!r}", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_remove_movie_reaction_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_movie_id = 9999
+
+    response = await client.delete(f"/api/v1/movies/{fake_movie_id}/like", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id!r} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_remove_movie_reaction_not_found(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+
+    response = await client.delete(f"/api/v1/movies/{movie.id}/like", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"You have not reacted to the {movie.name!r} movie", "Unexpected error message for removing a non-existent reaction."
+
+
+@pytest.mark.asyncio
+async def test_set_movie_reaction_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    reaction_payload = {"like_dislike": "like"}
+
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post(f"/api/v1/movies/{movie.id}/like", json=reaction_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while estimating the movie.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_remove_movie_reaction_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await db_session.execute(insert(MovieLikeDislikeModel).values(user_id=user.id, movie_id=movie.id, like_dislike=LikeDislikeEnum.LIKE))
+
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete(f"/api/v1/movies/{movie.id}/like", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while deleting like to the movie.", "Unexpected error message for a commit failure."
