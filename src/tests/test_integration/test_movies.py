@@ -516,3 +516,152 @@ async def test_delete_star_commit_error(client, db_session, jwt_manager, seed_us
         response = await client.delete(f"/api/v1/movies/stars/{star.id}", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == f"An error occurred while deleting the star.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_create_director_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    director_payload = {
+        "name": "Christopher Nolan"
+    }
+
+    response = await client.post("/api/v1/movies/directors", json=director_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.json()["name"] == director_payload["name"], "Returned name does not match the one sent."
+
+
+@pytest.mark.asyncio
+async def test_create_director_conflict(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    director_payload = {
+        "name": "Christopher Nolan"
+    }
+    director = await create_director_directly(db_session, **director_payload)
+
+    response = await client.post("/api/v1/movies/directors", json=director_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"A director with this name {director.name!r} already exists.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_list_director_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_director_directly(db_session, name="Christopher Nolan")
+    await create_director_directly(db_session, name="Denis Villeneuve")
+
+    response = await client.get("/api/v1/movies/directors", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()) == 2, "Unexpected number of directors returned."
+
+
+@pytest.mark.asyncio
+async def test_list_directors_empty(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.get("/api/v1/movies/directors", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "No directors found.", "Unexpected error message for an empty table."
+
+
+@pytest.mark.asyncio
+async def test_get_director_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    director = await create_director_directly(db_session, name="PG-13")
+
+    response = await client.get(f"/api/v1/movies/directors/{director.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+
+@pytest.mark.asyncio
+async def test_get_director_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_director_id = 9999
+
+    response = await client.get(f"/api/v1/movies/directors/{fake_director_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Director with id {fake_director_id} not found.", "Unexpected error message for a missing director."
+
+
+@pytest.mark.asyncio
+async def test_update_director_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    director = await create_director_directly(db_session, name="Christopher Nolan")
+    director_update_payload = {
+        "name": "New Name"
+    }
+    response = await client.patch(f"/api/v1/movies/directors/{director.id}", json=director_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["name"] == "New Name", "Name was not updated."
+
+
+@pytest.mark.asyncio
+async def test_update_director_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    fake_director_id = 9999
+    director_update_payload = {
+        "name": "New Name"
+    }
+    response = await client.patch(f"/api/v1/movies/directors/{fake_director_id}", json=director_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Director with id {fake_director_id} not found.", "Unexpected error message for a missing director."
+
+
+@pytest.mark.asyncio
+async def test_update_director_conflict(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    await create_director_directly(db_session, name="Christopher Nolan")
+    director_2 = await create_director_directly(db_session, name="Denis Villeneuve")
+    director_update_payload = {
+        "name": "Christopher Nolan"
+    }
+    response = await client.patch(f"/api/v1/movies/directors/{director_2.id}", json=director_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"A director with this name {director_update_payload["name"]!r} already exists.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_delete_director_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    director = await create_director_directly(db_session, name="Christopher Nolan")
+
+    response = await client.delete(f"/api/v1/movies/directors/{director.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Director {director.name!r} was successfully deleted.", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_create_director_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    director_payload = {
+        "name": "Christopher Nolan"
+    }
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post("/api/v1/movies/directors", json=director_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while creating the director.", "Unexpected error message for a commit failure."
+
+
+
+@pytest.mark.asyncio
+async def test_update_director_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    director = await create_director_directly(db_session, name="Christopher Nolan")
+    director_update_payload = {
+        "name": "New Name"
+    }
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.patch(f"/api/v1/movies/directors/{director.id}", json=director_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while updating the director.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_delete_director_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    director = await create_director_directly(db_session, name="Christopher Nolan")
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete(f"/api/v1/movies/directors/{director.id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while deleting the director.", "Unexpected error message for a commit failure."
+
+
