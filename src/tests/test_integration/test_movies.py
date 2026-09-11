@@ -1519,3 +1519,107 @@ async def test_remove_movie_rating_commit_error(client, db_session, jwt_manager,
         response = await client.delete(f"/api/v1/movies/{movie.id}/rating", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while deleting score to the movie." , "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_create_comment_success(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment_payload = {"comment": "Great movie!"}
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/comments", json=comment_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Your comment on {movie.name!r} was successfully added.", "Unexpected success message."
+
+    stmt = select(MovieCommentModel).where(MovieCommentModel.movie_id == movie.id)
+    result = await db_session.execute(stmt)
+    comment_record = result.scalars().first()
+    assert comment_record is not None and comment_record.parent_id is None, "Comment was not created as a top-level comment."
+
+
+@pytest.mark.asyncio
+async def test_create_comment_reply_success(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    parent_comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movie.id)
+    reply_comment_payload = {
+        "comment": "Agree!",
+        "parent_id": parent_comment.id
+    }
+    replier, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER, email="replier@example.com")
+
+    with patch.object(StubEmailSender, "send_reply_to_comment_email", side_effect=AsyncMock) as mock_send:
+        response = await client.post(f"/api/v1/movies/{movie.id}/comments", json=reply_comment_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        assert response.json()["message"] == f"Your comment on {movie.name!r} was successfully added.", "Unexpected success message."
+        mock_send.assert_called_once_with(
+            email=user.email,
+            movie_name=movie.name,
+            replier_email=replier.email,
+            reply_text=reply_comment_payload["comment"]
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_comment_movie_not_found(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_movie_id = 9999
+    comment_payload = {"comment": "Great movie!"}
+
+    response = await client.post(f"/api/v1/movies/{fake_movie_id}/comments", json=comment_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_create_comment_parent_not_found(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    movie = await create_movie_full(db_session=db_session)
+    parent_fake_id = 9999
+    reply_comment_payload = {
+        "comment": "Agree!",
+        "parent_id": parent_fake_id
+    }
+    replier, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER, email="replier@example.com")
+
+    response = await client.post(f"/api/v1/movies/{movie.id}/comments", json=reply_comment_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Parent comment with id {parent_fake_id} not found", "Unexpected error message for a missing parent comment."
+
+
+@pytest.mark.asyncio
+async def test_create_comment_parent_wrong_movie(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    certification = await create_certification_directly(db_session, name="PG-13")
+    movies = []
+    movies_data = [
+        {"name": "Inception", "year": 2010, "time": 148, "imdb": 8.8, "votes": 2400000,
+         "description": "A thief who steals corporate secrets through dream-sharing technology.",
+         "price": 5.99, "certification": certification},
+        {"name": "The Dark Knight", "year": 2008, "time": 152, "imdb": 9.0, "votes": 2700000,
+         "description": "Batman faces the Joker, a criminal mastermind who plunges Gotham into anarchy.",
+         "price": 9.99, "certification": certification},
+    ]
+    for movie_data in movies_data:
+        movies.append(await create_movie_full(db_session=db_session, **movie_data))
+    parent_comment = await create_comment_directly(db_session=db_session, user_id=user.id, movie_id=movies[0].id)
+    reply_comment_payload = {
+        "comment": "Agree!",
+        "parent_id": parent_comment.id
+    }
+    replier, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER, email="replier@example.com")
+
+    response = await client.post(f"/api/v1/movies/{movies[1].id}/comments", json=reply_comment_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "Parent comment does not belong to this movie", "Unexpected error message for a cross-movie parent comment."
+
+
+@pytest.mark.asyncio
+async def test_create_comment_commit_error(client, db_session, jwt_manager, seed_user_groups, email_sender_stub):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    comment_payload = {"comment": "Great movie!"}
+
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post(f"/api/v1/movies/{movie.id}/comments", json=comment_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while adding comment to the movie.", "Unexpected error message for a commit failure."
