@@ -370,3 +370,149 @@ async def test_delete_genre_commit_error(client, db_session, jwt_manager, seed_u
         response = await client.delete(f"/api/v1/movies/genres/{genre.id}", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == f"An error occurred while deleting the genre.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_create_star_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    star_payload = {
+        "name": "Tom Hardy"
+    }
+
+    response = await client.post("/api/v1/movies/stars", json=star_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
+    assert response.json()["name"] == star_payload["name"], "Returned name does not match the one sent."
+
+
+@pytest.mark.asyncio
+async def test_create_star_conflict(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    star_payload = {
+        "name": "Tom Hardy"
+    }
+    star = await create_star_directly(db_session, **star_payload)
+
+    response = await client.post("/api/v1/movies/stars", json=star_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"A star with this name {star.name!r} already exists.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_list_star_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    await create_star_directly(db_session, name="Tom Hardy")
+    await create_star_directly(db_session, name="Leonardo DiCaprio")
+
+    response = await client.get("/api/v1/movies/stars", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()) == 2, "Unexpected number of stars returned."
+
+
+@pytest.mark.asyncio
+async def test_list_stars_empty(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.get("/api/v1/movies/stars", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == "No stars found.", "Unexpected error message for an empty table."
+
+
+@pytest.mark.asyncio
+async def test_get_star_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    star = await create_star_directly(db_session, name="PG-13")
+
+    response = await client.get(f"/api/v1/movies/stars/{star.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+
+@pytest.mark.asyncio
+async def test_get_star_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    fake_star_id = 9999
+
+    response = await client.get(f"/api/v1/movies/stars/{fake_star_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Star with id {fake_star_id} not found.", "Unexpected error message for a missing star."
+
+
+@pytest.mark.asyncio
+async def test_update_star_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    star = await create_star_directly(db_session, name="Tom Hardy")
+    star_update_payload = {
+        "name": "New Name"
+    }
+    response = await client.patch(f"/api/v1/movies/stars/{star.id}", json=star_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["name"] == "New Name", "Name was not updated."
+
+
+@pytest.mark.asyncio
+async def test_update_star_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    fake_star_id = 9999
+    star_update_payload = {
+        "name": "New Name"
+    }
+    response = await client.patch(f"/api/v1/movies/stars/{fake_star_id}", json=star_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Star with id {fake_star_id} not found.", "Unexpected error message for a missing star."
+
+
+@pytest.mark.asyncio
+async def test_update_star_conflict(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    await create_star_directly(db_session, name="Tom Hardy")
+    star_2 = await create_star_directly(db_session, name="Leonardo DiCaprio")
+    star_update_payload = {
+        "name": "Tom Hardy"
+    }
+    response = await client.patch(f"/api/v1/movies/stars/{star_2.id}", json=star_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 409, f"Expected 409, got {response.status_code}"
+    assert response.json()["detail"] == f"A star with this name {star_update_payload["name"]!r} already exists.", "Unexpected conflict error message."
+
+
+@pytest.mark.asyncio
+async def test_delete_star_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    star = await create_star_directly(db_session, name="Tom Hardy")
+
+    response = await client.delete(f"/api/v1/movies/stars/{star.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["message"] == f"Star {star.name!r} was successfully deleted.", "Unexpected success message."
+
+
+@pytest.mark.asyncio
+async def test_create_star_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    star_payload = {
+        "name": "Tom Hardy"
+    }
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post("/api/v1/movies/stars", json=star_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while creating the star.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_update_star_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    star = await create_star_directly(db_session, name="Tom Hardy")
+    star_update_payload = {
+        "name": "New Name"
+    }
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.patch(f"/api/v1/movies/stars/{star.id}", json=star_update_payload, headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while updating the star.", "Unexpected error message for a commit failure."
+
+
+@pytest.mark.asyncio
+async def test_delete_star_commit_error(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    star = await create_star_directly(db_session, name="Tom Hardy")
+    with patch("routes.movies.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.delete(f"/api/v1/movies/stars/{star.id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == f"An error occurred while deleting the star.", "Unexpected error message for a commit failure."
