@@ -1042,3 +1042,44 @@ async def test_list_movies_sort_by_price_desc(client, db_session, jwt_manager, s
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert [item["price"] for item in response.json()["items"]] == ["19.99", "9.99", "5.99"], "price_min/price_max range returned the wrong movies."
 
+
+
+@pytest.mark.asyncio
+async def test_get_movie_success(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    movie = await create_movie_full(db_session=db_session)
+
+    response = await client.get(f"/api/v1/movies/{movie.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["name"] == movie.name, "Returned movie does not match the requested id."
+
+
+@pytest.mark.asyncio
+async def test_get_movie_not_found(client, db_session, jwt_manager, seed_user_groups):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.ADMIN)
+    fake_movie_id = 9999
+
+    response = await client.get(f"/api/v1/movies/{fake_movie_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Movie with id {fake_movie_id} not found.", "Unexpected error message for a missing movie."
+
+
+@pytest.mark.asyncio
+async def test_list_favorite_movies_success(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+    movie = await create_movie_full(db_session=db_session)
+    await db_session.execute(insert(FavoriteMovieModel).values(user_id=user.id, movie_id=movie.id))
+    await db_session.commit()
+
+    response = await client.get("/api/v1/movies/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()["items"]) == 1 and response.json()["items"][0]["name"] == movie.name, "Favorites list did not return the expected movie."
+
+
+@pytest.mark.asyncio
+async def test_list_favorite_movies_empty(client, db_session, jwt_manager, seed_user_groups):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
+
+    response = await client.get("/api/v1/movies/favorites", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["items"] == [] and response.json()["total"] == 0, "Expected an empty paginated envelope for a user with no favorites."
