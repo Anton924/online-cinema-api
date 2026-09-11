@@ -1384,17 +1384,12 @@ async def remove_movie_reaction_service(
             message=f"You have deleted your reaction for the movie {movie.name!r}"
         )
     except SQLAlchemyError as e:
+        like_dislike = record.like_dislike
         await db.rollback()
-        if record.like_dislike == LikeDislikeEnum.DISLIKE:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="An error occurred while deleting dislike to the movie."
-            ) from e
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="An error occurred while deleting like to the movie."
-            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while deleting {like_dislike.value} to the movie."
+        ) from e
 
 
 async def set_movie_rating_service(
