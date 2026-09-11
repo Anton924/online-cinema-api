@@ -333,6 +333,9 @@ async def get_movies_by_genre(
     stmt = (
         select(MovieModel)
         .join(MovieModel.genres)
+        .options(
+            joinedload(MovieModel.certification)
+        )
         .where(GenreModel.id.in_([genre_id]))
     )
 
@@ -341,7 +344,7 @@ async def get_movies_by_genre(
 
     if not movies:
         return MessageResponseSchema(
-            message=f"No movies for {genre.name} genre"
+            message=f"No movies for {genre.name} genre."
         )
 
     return [
