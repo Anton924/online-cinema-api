@@ -329,3 +329,64 @@ async def test_view_payment_forbidden(settings, client, db_session, seed_user_gr
     response = await client.get(f"/api/v1/payments/{payment.id}", headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 403, f"Expected 403, got {response.status_code}"
     assert response.json()["detail"] == "You can view only your own payments!", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_refund_payment_success(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.ADMIN, email="admin@example.com")
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PAID)
+    payment = await create_payment_directly(db_session=db_session, user=user, order=order, status=PaymentStatus.SUCCESSFUL)
+    with patch.object(payment_gateway_fake, "create_refund", side_effect=AsyncMock):
+        response = await client.post(f"/api/v1/payments/{payment.id}/refund", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        assert response.json()["message"] == f"Payment #{payment.id} was successfully refunded.", "Unexpected success message."
+        refreshed_payment = (await db_session.execute(select(PaymentModel).where(
+            PaymentModel.id == payment.id
+        ).execution_options(populate_existing=True))).scalars().first()
+        refreshed_order = (await db_session.execute(select(OrderModel).where(
+            OrderModel.id == order.id
+        ).execution_options(populate_existing=True))).scalars().first()
+        assert refreshed_payment.status == PaymentStatus.REFUNDED and refreshed_order.status == StatusOrderEnum.CANCELED, "Payment and/or order status was not updated."
+        assert payment_gateway_fake.create_refund.call_args.kwargs["payload"]["payment_intent_id"] == refreshed_payment.payment_intent_id, "Gateway was not called with the right payment intent."
+
+
+@pytest.mark.asyncio
+async def test_refund_payment_partial_amount(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.ADMIN, email="admin@example.com")
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PAID)
+    payment = await create_payment_directly(db_session=db_session, user=user, order=order, status=PaymentStatus.SUCCESSFUL)
+    amount_refund = Decimal(5)
+    with patch.object(payment_gateway_fake, "create_refund", side_effect=AsyncMock):
+        response = await client.post(f"/api/v1/payments/{payment.id}/refund?amount={amount_refund}", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        assert payment_gateway_fake.create_refund.call_args.kwargs["payload"]["amount"] == amount_refund * 100, "Amount was not converted to cents correctly."
+
+
+@pytest.mark.asyncio
+async def test_refund_payment_stripe_error(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.ADMIN, email="admin@example.com")
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PAID)
+    payment = await create_payment_directly(db_session=db_session, user=user, order=order, status=PaymentStatus.SUCCESSFUL)
+    payment_gateway_fake.create_refund.side_effect = StripeError()
+    response = await client.post(f"/api/v1/payments/{payment.id}/refund", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+    assert response.json()["detail"] == "An error occurred while processing the refund.", "Unexpected error message for a gateway failure."
+
+
+@pytest.mark.asyncio
+async def test_refund_payment_commit_error(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.ADMIN, email="admin@example.com")
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PAID)
+    payment = await create_payment_directly(db_session=db_session, user=user, order=order, status=PaymentStatus.SUCCESSFUL)
+    with patch("routes.payments.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post(f"/api/v1/payments/{payment.id}/refund", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 500, f"Expected 500, got {response.status_code}"
+        assert response.json()["detail"] == "An error occurred while processing the refund", "Unexpected error message for a commit failure."
