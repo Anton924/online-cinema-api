@@ -130,7 +130,7 @@ async def test_update_certification_conflict(client, db_session, jwt_manager, se
     }
     response = await client.patch(f"/api/v1/movies/certifications/{certification_2.id}", json=certification_update_payload, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 409, f"Expected 409, got {response.status_code}"
-    assert response.json()["detail"] == f"A certification with this name {certification_update_payload["name"]!r} already exists.", "Unexpected conflict error message."
+    assert response.json()["detail"] == f"A certification with this name {certification_update_payload['name']!r} already exists.", "Unexpected conflict error message."
 
 
 @pytest.mark.asyncio
@@ -324,7 +324,7 @@ async def test_update_genre_conflict(client, db_session, jwt_manager, seed_user_
     }
     response = await client.patch(f"/api/v1/movies/genres/{genre_2.id}", json=genre_update_payload, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 409, f"Expected 409, got {response.status_code}"
-    assert response.json()["detail"] == f"A genre with this name {genre_update_payload["name"]!r} already exists.", "Unexpected conflict error message."
+    assert response.json()["detail"] == f"A genre with this name {genre_update_payload['name']!r} already exists.", "Unexpected conflict error message."
 
 
 @pytest.mark.asyncio
@@ -470,7 +470,7 @@ async def test_update_star_conflict(client, db_session, jwt_manager, seed_user_g
     }
     response = await client.patch(f"/api/v1/movies/stars/{star_2.id}", json=star_update_payload, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 409, f"Expected 409, got {response.status_code}"
-    assert response.json()["detail"] == f"A star with this name {star_update_payload["name"]!r} already exists.", "Unexpected conflict error message."
+    assert response.json()["detail"] == f"A star with this name {star_update_payload['name']!r} already exists.", "Unexpected conflict error message."
 
 
 @pytest.mark.asyncio
@@ -616,7 +616,7 @@ async def test_update_director_conflict(client, db_session, jwt_manager, seed_us
     }
     response = await client.patch(f"/api/v1/movies/directors/{director_2.id}", json=director_update_payload, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 409, f"Expected 409, got {response.status_code}"
-    assert response.json()["detail"] == f"A director with this name {director_update_payload["name"]!r} already exists.", "Unexpected conflict error message."
+    assert response.json()["detail"] == f"A director with this name {director_update_payload['name']!r} already exists.", "Unexpected conflict error message."
 
 
 @pytest.mark.asyncio
@@ -1135,7 +1135,7 @@ async def test_update_movie_certification_not_found(client, db_session, jwt_mana
 
     response = await client.patch(f"/api/v1/movies/{movie.id}", json=movie_update_payload, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-    assert response.json()["detail"] == f"Certification with id {movie_update_payload["certification_id"]} not found.", "Unexpected error message for a missing certification."
+    assert response.json()["detail"] == f"Certification with id {movie_update_payload['certification_id']} not found.", "Unexpected error message for a missing certification."
 
 
 @pytest.mark.asyncio
@@ -1432,7 +1432,7 @@ async def test_set_movie_rating_success(client, db_session, jwt_manager, seed_us
 
     response = await client.post(f"/api/v1/movies/{movie.id}/rating", json=rating_payload, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
-    assert response.json()["message"] == f"Movie {movie.name!r} was successfully rated {rating_payload["score"]}/10 by {user.email}.", "Unexpected success message."
+    assert response.json()["message"] == f"Movie {movie.name!r} was successfully rated {rating_payload['score']}/10 by {user.email}.", "Unexpected success message."
 
     stmt = select(MovieModel).where(MovieModel.id == movie.id).options(joinedload(MovieModel.scores)).execution_options(populate_existing=True)
     result = await db_session.execute(stmt)
@@ -1449,7 +1449,7 @@ async def test_set_movie_rating_update_existing(client, db_session, jwt_manager,
 
     response = await client.post(f"/api/v1/movies/{movie.id}/rating", json=rating_update_payload, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 200, "Re-rating should succeed, not conflict."
-    assert response.json()["message"] == f"Movie {movie.name!r} was successfully rated {rating_update_payload["score"]}/10 by {user.email}.", "Unexpected success message."
+    assert response.json()["message"] == f"Movie {movie.name!r} was successfully rated {rating_update_payload['score']}/10 by {user.email}.", "Unexpected success message."
 
     stmt = select(MovieRateModel).where(MovieRateModel.user_id == user.id, MovieRateModel.movie_id == movie.id)
     result = await db_session.execute(stmt)
