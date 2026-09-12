@@ -276,3 +276,56 @@ async def test_list_payments_empty(settings, client, db_session, seed_user_group
     response = await client.get("/api/v1/payments", headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert response.json() == [], "Expected an empty list, not a 404."
+
+
+@pytest.mark.asyncio
+async def test_view_payment_success(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user_1, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    user_2, _ = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER,
+                                                    email="user_2@example.com")
+    movie = await create_movie(db_session=db_session)
+    order_user = OrderModel(user_id=user_1.id, status=StatusOrderEnum.PAID, order_sum=movie.price)
+    db_session.add(order_user)
+    await db_session.flush()
+    order_item = OrderItemModel(order_id=order_user.id, movie_id=movie.id, price_at_order=movie.price)
+    payment = PaymentModel(
+        order_id=order_user.id,
+        user_id=user_1.id,
+        status=PaymentStatus.SUCCESSFUL,
+        external_payment_id="cs_test_123",
+        payment_intent_id="pi_3Oa1b2c3D4e5F6g7H8i9J0k1",
+    )
+    db_session.add(order_item)
+    db_session.add(payment)
+    await db_session.flush()
+    payment_item = PaymentItemModel(payment_id=payment.id, price_at_payment=movie.price,
+                                    order_item_id=order_item.id)
+    db_session.add(payment_item)
+    await db_session.commit()
+
+    response = await client.get(f"/api/v1/payments/{payment.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json()["items"][0]["movie"]["name"] == movie.name, "Payment item's movie details don't match."
+
+
+@pytest.mark.asyncio
+async def test_view_payment_not_found(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    _, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    fake_payment_id = 9999
+
+    response = await client.get(f"/api/v1/payments/{fake_payment_id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    assert response.json()["detail"] == f"Payment with id {fake_payment_id} not found.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_view_payment_forbidden(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, _ = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    admin, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER, email="admin@example.com")
+    movie = await create_movie(db_session=db_session)
+    order = await create_order_directly(db_session, user, movie, status=StatusOrderEnum.PENDING)
+    payment = await create_payment_directly(db_session=db_session, user=user, order=order)
+
+    response = await client.get(f"/api/v1/payments/{payment.id}", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
+    assert response.json()["detail"] == "You can view only your own payments!", "Unexpected error message."
