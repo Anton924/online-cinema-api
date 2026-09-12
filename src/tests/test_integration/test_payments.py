@@ -227,3 +227,52 @@ async def test_payment_cancel_page(settings, client, db_session, seed_user_group
     response = await client.get("/api/v1/payments/cancel")
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert response.json() == {"status": "cancelled"}, "Unexpected response body."
+
+
+@pytest.mark.asyncio
+async def test_list_payments_success(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user_1, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+    user_2, _ = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER, email="user_2@example.com")
+    movie = await create_movie(db_session=db_session)
+    order_user_1 = OrderModel(user_id=user_1.id, status=StatusOrderEnum.PAID, order_sum=movie.price)
+    order_user_2 = OrderModel(user_id=user_2.id, status=StatusOrderEnum.PAID, order_sum=movie.price)
+    db_session.add(order_user_1)
+    db_session.add(order_user_2)
+    await db_session.flush()
+    order_item = OrderItemModel(order_id=order_user_1.id, movie_id=movie.id, price_at_order=movie.price)
+    payment_user_1 = PaymentModel(
+        order_id = order_user_1.id,
+        user_id = user_1.id,
+        status = PaymentStatus.SUCCESSFUL,
+        external_payment_id = "cs_test_123",
+        payment_intent_id = "pi_3Oa1b2c3D4e5F6g7H8i9J0k1",
+    )
+    payment_user_2 = PaymentModel(
+        order_id = order_user_2.id,
+        user_id = user_2.id,
+        status = PaymentStatus.SUCCESSFUL,
+        external_payment_id = "cs_test_321",
+        payment_intent_id = "pi_3Oa1b2c3D4e5F6g7H8i9J0k2",
+    )
+    db_session.add(order_item)
+    db_session.add(payment_user_1)
+    db_session.add(payment_user_2)
+    await db_session.flush()
+    payment_item=PaymentItemModel(payment_id=payment_user_1.id, price_at_payment=movie.price, order_item_id=order_item.id)
+    db_session.add(payment_item)
+    await db_session.commit()
+
+
+    response = await client.get("/api/v1/payments", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert len(response.json()) == 1, "Should return only the current user's payments."
+    assert response.json()[0]["items_count"] == 1, "Unexpected items_count."
+
+
+@pytest.mark.asyncio
+async def test_list_payments_empty(settings, client, db_session, seed_user_groups, payment_gateway_fake, jwt_manager):
+    user, access_token = await create_active_user_with_token(db_session, jwt_manager, group=UserGroupEnum.USER)
+
+    response = await client.get("/api/v1/payments", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.json() == [], "Expected an empty list, not a 404."
