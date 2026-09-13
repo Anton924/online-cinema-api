@@ -244,7 +244,7 @@ async def test_activate_via_link_success(client, db_session, seed_user_groups):
     token_record = result.scalars().first()
     assert token_record is not None, "Activation token was not found for the user."
 
-    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={user.email}&token={token_record.token}")
+    response = await client.get(f"/api/v1/accounts/activate_activation_link?email={user.email}&token={token_record.token}")
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert response.json()["message"] == "User account activated successfully.", "Unexpected success message."
 
@@ -271,7 +271,7 @@ async def test_activate_via_link_unknown_email(client, db_session, seed_user_gro
     assert token_record is not None, "Activation token was not found for the user."
     unknown_email = "unknowen@email.com"
 
-    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={unknown_email}&token={token_record.token}")
+    response = await client.get(f"/api/v1/accounts/activate_activation_link?email={unknown_email}&token={token_record.token}")
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == f"A user with this email {unknown_email} does not exist.", "Unexpected error message for an unknown email."
 
@@ -300,7 +300,7 @@ async def test_activate_via_link_already_active(client, db_session, seed_user_gr
     token_record = result.scalars().first()
     assert token_record is not None, "Activation token was not found for the user."
 
-    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={user.email}&token={token_record.token}")
+    response = await client.get(f"/api/v1/accounts/activate_activation_link?email={user.email}&token={token_record.token}")
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "User account is already active.", "Unexpected error message for an already-active user."
 
@@ -328,7 +328,7 @@ async def test_activate_via_link_expired_token(client, db_session, seed_user_gro
     token_record.expires_at = datetime.now(timezone.utc) - timedelta(days=2)
     await db_session.commit()
 
-    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={user.email}&token={token_record.token}")
+    response = await client.get(f"/api/v1/accounts/activate_activation_link?email={user.email}&token={token_record.token}")
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "Invalid or expired activation token.", "Unexpected error message for an expired/deleted token."
 
@@ -356,7 +356,7 @@ async def test_activate_via_link_deleted_token(client, db_session, seed_user_gro
     await db_session.delete(token_record)
     await db_session.commit()
 
-    response = await client.get(f"/api/v1/accounts/activate_activation_link/?email={user.email}&token={token_record.token}")
+    response = await client.get(f"/api/v1/accounts/activate_activation_link?email={user.email}&token={token_record.token}")
     assert response.status_code == 400, f"Expected 400, got {response.status_code}"
     assert response.json()["detail"] == "Invalid or expired activation token.", "Unexpected error message for an expired/deleted token."
 
@@ -478,7 +478,7 @@ async def test_login_success(client, db_session, seed_user_groups, jwt_manager):
         "password": "StrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    response = await client.post("/api/v1/accounts/login", json=login_payload)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     response_data = response.json()
     assert response_data["access_token"] is not None, "Access token is missing or empty."
@@ -519,7 +519,7 @@ async def test_login_invalid_credentials(client, db_session, seed_user_groups):
         "password": "InvalidStrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=invalid_login_payload)
+    response = await client.post("/api/v1/accounts/login", json=invalid_login_payload)
     assert response.status_code == 401, f"Expected 401, got {response.status_code}"
     assert response.json()["detail"] == "Invalid email or password.", "Unexpected error message for invalid credentials."
 
@@ -540,7 +540,7 @@ async def test_login_inactive_user(client, db_session, seed_user_groups):
         "password": "StrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    response = await client.post("/api/v1/accounts/login", json=login_payload)
     assert response.status_code == 403, f"Expected 403, got {response.status_code}"
     assert response.json()["detail"] == "User account is not activated.", "Unexpected error message for an inactive user."
 
@@ -562,7 +562,7 @@ async def test_login_commit_error(client, db_session, seed_user_groups):
             "email": "user@example.com",
             "password": "StrongPassword123!"
         }
-        response = await client.post("/api/v1/accounts/login/", json=login_payload)
+        response = await client.post("/api/v1/accounts/login", json=login_payload)
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
         assert response.json()["detail"] == "An error occurred while processing the request.", "Unexpected error message for a commit failure."
 
@@ -584,7 +584,7 @@ async def test_refresh_token_success(client, db_session, seed_user_groups, jwt_m
         "password": "StrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    response = await client.post("/api/v1/accounts/login", json=login_payload)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
     refresh_token_payload = {
@@ -616,7 +616,7 @@ async def test_refresh_token_expired(client, db_session, seed_user_groups, jwt_m
         "password": "StrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    response = await client.post("/api/v1/accounts/login", json=login_payload)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == response.json()["refresh_token"])
@@ -653,7 +653,7 @@ async def test_refresh_token_not_found(client, db_session, seed_user_groups, jwt
         "password": "StrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    response = await client.post("/api/v1/accounts/login", json=login_payload)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == response.json()["refresh_token"])
@@ -704,7 +704,7 @@ async def test_logout_success(client, db_session, seed_user_groups, jwt_manager)
         "password": "StrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    response = await client.post("/api/v1/accounts/login", json=login_payload)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
     logout_token_payload = {
@@ -736,7 +736,7 @@ async def test_logout_token_not_found(client, db_session, seed_user_groups):
         "password": "StrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    response = await client.post("/api/v1/accounts/login", json=login_payload)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == response.json()["refresh_token"])
@@ -771,7 +771,7 @@ async def test_read_me_success(client, db_session, seed_user_groups):
         "password": "StrongPassword123!"
     }
 
-    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    response = await client.post("/api/v1/accounts/login", json=login_payload)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
     response = await client.get("/api/v1/accounts/me", headers={"Authorization": f'Bearer {response.json()["access_token"]}'})
