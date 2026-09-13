@@ -6,7 +6,7 @@ services:
       dockerfile: ./docker/tests/Dockerfile
     container_name: backend_cinema_test
     command: ["pytest", "-c", "/usr/src/config/pytest.ini",
-              "-m", "e2e", "--maxfail=5", "--disable-warnings", "-v", "--tb=short"]
+              "--maxfail=5", "--disable-warnings", "-v", "--tb=short"]
     environment:
       - PYTHONPATH=/usr/src/fastapi
     env_file:
