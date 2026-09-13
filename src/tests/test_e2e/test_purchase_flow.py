@@ -1,11 +1,8 @@
 import pytest
 
 from tests.conftest import (
-    make_image_bytes,
-    create_movie_full,
-    create_certification_directly
+    create_movie_full
 )
-from database.models.accounts import UserModel
 from database.models.orders import StatusOrderEnum
 
 

@@ -1,4 +1,3 @@
-import io
 from datetime import date, timedelta
 from unittest.mock import patch
 from sqlalchemy import select

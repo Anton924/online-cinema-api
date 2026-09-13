@@ -16,7 +16,7 @@ from tests.conftest import (
 )
 from database.models.orders import StatusOrderEnum, OrderModel, OrderItemModel
 from database.models.payments import PaymentModel, PaymentStatus, PaymentItemModel
-from database.models.accounts import UserModel, UserGroup, UserGroupEnum
+from database.models.accounts import UserGroupEnum
 
 
 @pytest.mark.asyncio

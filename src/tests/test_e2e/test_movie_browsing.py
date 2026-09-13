@@ -1,10 +1,5 @@
 import pytest
 
-from tests.conftest import (
-    create_movie_full
-)
-from database.models.accounts import UserModel
-
 # 1 movie - Inception have been created in test_06_comment_reply_notification in test_accounts_flow.py
 # 2 movie - E2E Test Movie have been created in test_09_add_to_cart for test_purchase_flow.py
 

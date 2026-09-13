@@ -5,7 +5,7 @@ from sqlalchemy import select
 from tests.conftest import (
     make_image_bytes
 )
-from database.models.accounts import ActivationTokenModel, UserModel, RefreshTokenModel, PasswordResetTokenModel
+from database.models.accounts import UserModel
 
 
 @pytest.mark.asyncdio
