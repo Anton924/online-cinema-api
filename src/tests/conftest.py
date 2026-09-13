@@ -2,8 +2,11 @@ import io
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
+import pytest
 import pytest_asyncio
 from PIL import Image
+from bs4 import BeautifulSoup
 
 from database import (
     reset_database
@@ -322,3 +325,29 @@ async def create_payment_directly(
     await db_session.commit()
     await db_session.refresh(payment)
     return payment
+
+
+async def fetch_latest_email_for(settings, recipient):
+    mailhog_url = f"http://{settings.EMAIL_HOST}:{settings.MAILHOG_API_PORT}/api/v2/messages"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(mailhog_url)
+    assert response.status_code == 200, "Failed to fetch emails from MailHog!"
+    messages = response.json()["items"]
+    for message in messages:
+        if message["Content"]["Headers"]["To"][0] == recipient:
+            return message
+    return pytest.fail(f"No email found for {recipient!r} in MailHog.")
+
+
+def parse_email_link(message: dict):
+    soup = BeautifulSoup(message["Content"]["Body"], "html.parser")
+    email_element = soup.find("strong", id="email")
+    link_element = soup.find("a", id="link")
+    assert email_element is not None, "Email element with id 'email' not found!"
+    assert link_element is not None,"Link element with id 'link' not found!"
+    return email_element.text, link_element["href"]
+
+
+@pytest_asyncio.fixture(scope="session")
+def e2e_state():
+    return {}
