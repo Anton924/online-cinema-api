@@ -44,6 +44,15 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "unit: Unit tests"
     )
+    config.addinivalue_line(
+        "markers", "integration: Integration tests"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        if "test_integration" in str(item.fspath):
+            item.add_marker(pytest.mark.integration)
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
