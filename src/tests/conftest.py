@@ -225,10 +225,12 @@ async def create_profile_for_user(db_session, user, **fields):
 
 
 async def create_certification_directly(db_session, name="PG-13") -> CertificationModel:
-    certification = CertificationModel(name=name)
-    db_session.add(certification)
-    await db_session.commit()
-    await db_session.refresh(certification)
+    certification = (await db_session.execute(select(CertificationModel).where(CertificationModel.name == name))).scalars().first()
+    if not certification:
+        certification = CertificationModel(name=name)
+        db_session.add(certification)
+        await db_session.commit()
+        await db_session.refresh(certification)
     return certification
 
 
