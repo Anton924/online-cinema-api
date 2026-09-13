@@ -9,6 +9,8 @@ services:
               "-m", "e2e", "--maxfail=5", "--disable-warnings", "-v", "--tb=short"]
     environment:
       - PYTHONPATH=/usr/src/fastapi
+    env_file:
+      - envs/.env.tests
     ports:
       - "8000:8000"
     depends_on:
