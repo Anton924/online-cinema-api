@@ -49,7 +49,7 @@ async def test_create_profile_success_with_avatar(client, db_session, jwt_manage
         "date_of_birth": "1990-05-20",
         "info": "Movie enthusiast and part-time critic."
     }
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
     avatar_key = f"avatar/{user.id}.jpeg"
@@ -79,7 +79,7 @@ async def test_create_profile_inactive_user(client, db_session, jwt_manager, s3_
         "date_of_birth": "1990-05-20",
         "info": "Movie enthusiast and part-time critic."
     }
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
     response = await client.post("/api/v1/profiles/me", data=profile_data, headers={"Authorization": f"Bearer {access_token}"}, files=file)
     assert response.status_code == 401, f"Expected 401, got {response.status_code}"
@@ -88,7 +88,7 @@ async def test_create_profile_inactive_user(client, db_session, jwt_manager, s3_
 
 @pytest.mark.asyncio
 async def test_create_profile_conflict(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
     await create_profile_for_user(db_session=db_session, user=user)
@@ -133,7 +133,7 @@ async def test_create_profile_birth_year_too_old(client, db_session, jwt_manager
 @pytest.mark.asyncio
 async def test_create_profile_unsupported_avatar_format(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
-    img_bytes = await make_image_bytes(fmt="GIF")
+    img_bytes = make_image_bytes(fmt="GIF")
     file = {"avatar": ("avatar.gif", img_bytes, "image/gif")}
     response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"}, files=file)
     assert response.status_code == 422, f"Expected 422, got {response.status_code}"
@@ -155,7 +155,7 @@ async def test_create_profile_avatar_upload_error(client, db_session, jwt_manage
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
 
     with patch.object(FakeS3Storage, "upload_file", side_effect=S3FileUploadError):
-        img_bytes = await make_image_bytes(fmt="JPEG")
+        img_bytes = make_image_bytes(fmt="JPEG")
         file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
         response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"}, files=file)
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
@@ -167,7 +167,7 @@ async def test_create_profile_commit_error(client, db_session, jwt_manager, s3_s
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
 
     with patch("routes.profiles.AsyncSession.commit", side_effect=SQLAlchemyError):
-        img_bytes = await make_image_bytes(fmt="JPEG")
+        img_bytes = make_image_bytes(fmt="JPEG")
         file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
         response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"}, files=file)
         assert response.status_code == 500, f"Expected 500, got {response.status_code}"
@@ -191,7 +191,7 @@ async def test_read_own_profile_success(client, db_session, jwt_manager, seed_us
 @pytest.mark.asyncio
 async def test_read_own_profile_with_avatar(client, db_session, jwt_manager, seed_user_groups, s3_storage_fake):
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
-    img_bytes = await make_image_bytes(fmt="JPEG")
+    img_bytes = make_image_bytes(fmt="JPEG")
     file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
     response = await client.post("/api/v1/profiles/me", headers={"Authorization": f"Bearer {access_token}"}, files=file)
     assert response.status_code == 201, f"Expected 201, got {response.status_code}"
@@ -327,7 +327,7 @@ async def test_update_avatar_success(client, db_session, jwt_manager, s3_storage
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
     await create_profile_for_user(db_session=db_session, user=user, **profile_data)
 
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     new_file = {"avatar": ("new_avatar.jpg", img_bytes, "image/jpeg")}
     new_avatar_key = f"avatar/{user.id}.jpeg"
     new_avatar_url = await s3_storage_fake.get_file_url(file_name=new_avatar_key)
@@ -341,7 +341,7 @@ async def test_update_avatar_success(client, db_session, jwt_manager, s3_storage
 async def test_update_avatar_profile_not_found(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
 
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     new_file = {"avatar": ("new_avatar.jpg", img_bytes, "image/jpeg")}
     response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 404, f"Expected 404, got {response.status_code}"
@@ -362,7 +362,7 @@ async def test_update_avatar_invalid_image_size(client, db_session, jwt_manager,
 async def test_update_avatar_invalid_image_format(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
 
-    img_bytes = await make_image_bytes(fmt="GIF")
+    img_bytes = make_image_bytes(fmt="GIF")
     new_file = {"avatar": ("new_avatar.gif", img_bytes, "image/gif")}
     response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 422, f"Expected 422, got {response.status_code}"
@@ -374,7 +374,7 @@ async def test_update_avatar_upload_error(client, db_session, jwt_manager, s3_st
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
     await create_profile_for_user(db_session=db_session, user=user)
 
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     new_file = {"avatar": ("new_avatar.jpeg", img_bytes, "image/jpeg")}
     with patch.object(FakeS3Storage, "upload_file", side_effect=S3FileUploadError):
         response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
@@ -387,7 +387,7 @@ async def test_update_avatar_commit_error(client, db_session, jwt_manager, s3_st
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
     await create_profile_for_user(db_session=db_session, user=user)
 
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     new_file = {"avatar": ("new_avatar.jpeg", img_bytes, "image/jpeg")}
     with patch("routes.profiles.AsyncSession.commit", side_effect=SQLAlchemyError):
         response = await client.patch("/api/v1/profiles/me/avatar", files=new_file, headers={"Authorization": f"Bearer {access_token}"})
@@ -397,7 +397,7 @@ async def test_update_avatar_commit_error(client, db_session, jwt_manager, s3_st
 
 @pytest.mark.asyncio
 async def test_delete_avatar_success(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
     avatar_key = f"avatar/{user.id}.jpeg"
@@ -435,7 +435,7 @@ async def test_delete_avatar_not_set(client, db_session, jwt_manager, s3_storage
 
 @pytest.mark.asyncio
 async def test_delete_avatar_s3_error(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
     avatar_key = f"avatar/{user.id}.jpeg"
@@ -452,7 +452,7 @@ async def test_delete_avatar_s3_error(client, db_session, jwt_manager, s3_storag
 
 @pytest.mark.asyncio
 async def test_delete_avatar_commit_error(client, db_session, jwt_manager, s3_storage_fake, seed_user_groups):
-    img_bytes = await make_image_bytes()
+    img_bytes = make_image_bytes()
     file = {"avatar": ("avatar.jpg", img_bytes, "image/jpeg")}
     user, access_token = await create_active_user_with_token(db_session, jwt_manager, UserGroupEnum.USER)
     avatar_key = f"avatar/{user.id}.jpeg"

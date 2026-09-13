@@ -210,7 +210,7 @@ async def create_order_directly(db_session, user, movie, status=StatusOrderEnum.
     return order
 
 
-async def make_image_bytes(fmt="JPEG", size=(10, 10)) -> bytes:
+def make_image_bytes(fmt="JPEG", size=(10, 10)) -> bytes:
     buffer = io.BytesIO()
     Image.new("RGB", size=size, color="red").save(buffer, format=fmt)
     return buffer.getvalue()
