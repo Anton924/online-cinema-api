@@ -132,7 +132,7 @@ async def activate(
 
 
 @router.get(
-    "/activate_activation_link/",
+    "/activate_activation_link",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_200_OK,
     responses={
@@ -224,7 +224,7 @@ async def resend_activation(
 
 
 @router.post(
-    "/login/",
+    "/login",
     status_code=status.HTTP_200_OK,
     response_model=TokenPairResponseSchema,
     responses={
