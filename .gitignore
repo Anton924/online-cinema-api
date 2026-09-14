@@ -177,3 +177,7 @@ cython_debug/
 
 # macOS
 .DS_Store
+
+# SSH keys / private credentials
+*.pem
+.ssh/
