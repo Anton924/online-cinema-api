@@ -29,3 +29,6 @@ docker compose -f docker-compose-prod.yml up -d --build || handle_error "Failed 
 
 # Print a success message upon successful deployment
 echo "Deployment completed successfully."
+
+# Restart Nginx service
+docker compose -f docker-compose-prod.yml restart nginx || handle_error "Failed to restart nginx after deployment."
