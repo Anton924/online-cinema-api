@@ -15,4 +15,4 @@ RUN chmod +x /commands/*.sh
 
 ENTRYPOINT ["/commands/set_nginx_basic_auth.sh"]
 
-CMD ["nginx", "-g", "deamon off"]
+CMD ["nginx", "-g", "daemon off;"]
