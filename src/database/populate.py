@@ -120,7 +120,9 @@ class CSVDatabaseSeeder:
 
     async def seed(self) -> None:
         await self.create_user_groups()
+        await self.db_session.flush()
         await self.create_admin_user()
+        await self.db_session.flush()
         await self.create_movies_from_csv()
         await self.db_session.commit()
 
